@@ -11,12 +11,10 @@ from datetime import datetime, timezone
 import requests
 
 from .._model import (
-    Activity,
     AP_CONTEXT,
     Follower,
     Object,
 )
-from .._exceptions import DeliveryError
 from ..crypto import sign_request
 from ..storage import ActivityPubStorage
 
@@ -85,7 +83,11 @@ class OutboxProcessor:
             "actor": self.actor_id,
             "published": now.isoformat(),
             "to": obj.to or [AS_PUBLIC],
-            "cc": obj.cc or [self.followers_collection_url] if self.followers_collection_url else obj.cc,
+            "cc": (
+                obj.cc or [self.followers_collection_url]
+                if self.followers_collection_url
+                else obj.cc
+            ),
             "object": obj.to_dict(),
         }
 
@@ -108,7 +110,11 @@ class OutboxProcessor:
             "actor": self.actor_id,
             "published": now.isoformat(),
             "to": obj.to or [AS_PUBLIC],
-            "cc": obj.cc or [self.followers_collection_url] if self.followers_collection_url else obj.cc,
+            "cc": (
+                obj.cc or [self.followers_collection_url]
+                if self.followers_collection_url
+                else obj.cc
+            ),
             "object": obj.to_dict(),
         }
 
@@ -131,7 +137,9 @@ class OutboxProcessor:
             "actor": self.actor_id,
             "published": now.isoformat(),
             "to": [AS_PUBLIC],
-            "cc": [self.followers_collection_url] if self.followers_collection_url else [],
+            "cc": (
+                [self.followers_collection_url] if self.followers_collection_url else []
+            ),
             "object": {
                 "id": object_id,
                 "type": "Tombstone",
@@ -202,9 +210,7 @@ class OutboxProcessor:
 
             if attempt < self.max_retries - 1:
                 delay = self.retry_base_delay * (2**attempt)
-                logger.info(
-                    "Retrying delivery to %s in %.1fs", inbox_url, delay
-                )
+                logger.info("Retrying delivery to %s in %.1fs", inbox_url, delay)
                 time.sleep(delay)
 
         logger.error(

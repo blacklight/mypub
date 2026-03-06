@@ -2,8 +2,6 @@
 Tests for file-based storage CRUD operations.
 """
 
-import os
-import tempfile
 from datetime import datetime, timezone
 
 import pytest
@@ -99,9 +97,7 @@ class TestInteractions:
         )
 
         storage.store_interaction(interaction)
-        interactions = storage.get_interactions(
-            "https://blog.example.com/post/1"
-        )
+        interactions = storage.get_interactions("https://blog.example.com/post/1")
 
         assert len(interactions) == 1
         assert interactions[0].content == "<p>Great post!</p>"
@@ -153,9 +149,7 @@ class TestInteractions:
         )
 
         # Should not appear in confirmed results
-        interactions = storage.get_interactions(
-            "https://blog.example.com/post/1"
-        )
+        interactions = storage.get_interactions("https://blog.example.com/post/1")
         assert len(interactions) == 0
 
         # But should appear with DELETED status
@@ -166,10 +160,7 @@ class TestInteractions:
         assert len(deleted) == 1
 
     def test_get_interactions_empty(self, storage):
-        assert (
-            storage.get_interactions("https://blog.example.com/nonexistent")
-            == []
-        )
+        assert storage.get_interactions("https://blog.example.com/nonexistent") == []
 
 
 class TestActivities:
@@ -182,18 +173,14 @@ class TestActivities:
 
     def test_get_activities_with_limit(self, storage):
         for i in range(10):
-            storage.store_activity(
-                f"act-{i}", {"id": f"act-{i}", "type": "Create"}
-            )
+            storage.store_activity(f"act-{i}", {"id": f"act-{i}", "type": "Create"})
 
         activities = storage.get_activities(limit=3)
         assert len(activities) == 3
 
     def test_get_activities_with_offset(self, storage):
         for i in range(5):
-            storage.store_activity(
-                f"act-{i}", {"id": f"act-{i}", "type": "Create"}
-            )
+            storage.store_activity(f"act-{i}", {"id": f"act-{i}", "type": "Create"})
 
         activities = storage.get_activities(limit=2, offset=3)
         assert len(activities) == 2
@@ -210,19 +197,13 @@ class TestActorCache:
             "name": "Alice",
         }
 
-        storage.cache_remote_actor(
-            "https://mastodon.social/users/alice", actor_data
-        )
+        storage.cache_remote_actor("https://mastodon.social/users/alice", actor_data)
 
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached is not None
         assert cached["name"] == "Alice"
 
     def test_cache_expiry(self, storage):
-        from datetime import timedelta
-
         old_time = datetime(2020, 1, 1, tzinfo=timezone.utc)
         storage.cache_remote_actor(
             "https://mastodon.social/users/alice",
@@ -231,9 +212,7 @@ class TestActorCache:
         )
 
         # With default max_age (24h), this should be expired
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached is None
 
     def test_cache_fresh(self, storage):
@@ -249,10 +228,7 @@ class TestActorCache:
         assert cached is not None
 
     def test_cache_miss(self, storage):
-        assert (
-            storage.get_cached_actor("https://nonexistent.example.com/user")
-            is None
-        )
+        assert storage.get_cached_actor("https://nonexistent.example.com/user") is None
 
     def test_cache_update(self, storage):
         storage.cache_remote_actor(
@@ -264,7 +240,5 @@ class TestActorCache:
             {"name": "Alice Updated"},
         )
 
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached["name"] == "Alice Updated"

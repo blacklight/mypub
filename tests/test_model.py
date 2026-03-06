@@ -36,17 +36,9 @@ class TestEnums:
         assert ObjectType.from_raw("article") == ObjectType.ARTICLE
 
     def test_interaction_type_from_activity(self):
-        assert (
-            InteractionType.from_activity_type("Create")
-            == InteractionType.REPLY
-        )
-        assert (
-            InteractionType.from_activity_type("Like") == InteractionType.LIKE
-        )
-        assert (
-            InteractionType.from_activity_type("Announce")
-            == InteractionType.BOOST
-        )
+        assert InteractionType.from_activity_type("Create") == InteractionType.REPLY
+        assert InteractionType.from_activity_type("Like") == InteractionType.LIKE
+        assert InteractionType.from_activity_type("Announce") == InteractionType.BOOST
 
     def test_interaction_type_from_activity_unknown(self):
         import pytest
@@ -147,9 +139,7 @@ class TestObject:
         assert obj.id == "https://example.com/note/1"
 
     def test_to_as_string(self):
-        obj = Object.build(
-            {"id": "x", "to": "https://example.com/public"}
-        )
+        obj = Object.build({"id": "x", "to": "https://example.com/public"})
         assert obj.to == ["https://example.com/public"]
 
     def test_optional_fields_omitted(self):

@@ -5,7 +5,7 @@ Tests for HTTP signature creation and verification.
 import pytest
 
 from mypub._exceptions import SignatureVerificationError
-from mypub.crypto._keys import generate_rsa_keypair, export_public_key_pem
+from mypub.crypto._keys import generate_rsa_keypair
 from mypub.crypto._signatures import (
     _build_digest,
     _build_signing_string,
@@ -51,9 +51,7 @@ class TestSigningString:
 
     def test_case_insensitive_headers(self):
         headers = {"HOST": "example.com", "DATE": "now"}
-        result = _build_signing_string(
-            "get", "/path", headers, ["host", "date"]
-        )
+        result = _build_signing_string("get", "/path", headers, ["host", "date"])
         assert "host: example.com" in result
         assert "date: now" in result
 
@@ -188,9 +186,7 @@ class TestSignAndVerify:
             )
 
     def test_verify_missing_signature(self, public_key):
-        with pytest.raises(
-            SignatureVerificationError, match="Missing Signature"
-        ):
+        with pytest.raises(SignatureVerificationError, match="Missing Signature"):
             verify_request(
                 public_key=public_key,
                 method="POST",

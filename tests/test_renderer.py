@@ -102,8 +102,12 @@ class TestRenderMultipleInteractions:
         renderer = InteractionsRenderer()
         interactions = [
             _make_interaction(InteractionType.REPLY, "<p>Reply</p>", "Alice"),
-            _make_interaction(InteractionType.LIKE, "", "Bob", "https://example.com/@bob"),
-            _make_interaction(InteractionType.BOOST, "", "Carol", "https://example.com/@carol"),
+            _make_interaction(
+                InteractionType.LIKE, "", "Bob", "https://example.com/@bob"
+            ),
+            _make_interaction(
+                InteractionType.BOOST, "", "Carol", "https://example.com/@carol"
+            ),
         ]
 
         html = str(renderer.render_interactions(interactions))

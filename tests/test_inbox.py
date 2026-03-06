@@ -2,18 +2,13 @@
 Tests for inbox processing — Follow, Undo, Create, Like, Announce, Delete.
 """
 
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mypub._model import (
-    Follower,
-    Interaction,
-    InteractionStatus,
     InteractionType,
 )
-from mypub.crypto._keys import generate_rsa_keypair, export_public_key_pem
 from mypub.handlers._inbox import InboxProcessor
 
 
@@ -203,9 +198,7 @@ class TestHandleLike:
 
 class TestHandleAnnounce:
     @patch("mypub.handlers._inbox.requests")
-    def test_announce_stores_boost(
-        self, mock_requests, inbox_processor, mock_storage
-    ):
+    def test_announce_stores_boost(self, mock_requests, inbox_processor, mock_storage):
         actor_id = "https://remote.example.com/users/alice"
         actor_data = _remote_actor_data(actor_id)
 
@@ -298,9 +291,7 @@ class TestUnknownActivity:
 
 class TestInteractionCallback:
     @patch("mypub.handlers._inbox.requests")
-    def test_callback_called_on_like(
-        self, mock_requests, mock_storage, private_key
-    ):
+    def test_callback_called_on_like(self, mock_requests, mock_storage, private_key):
         callback = MagicMock()
         processor = InboxProcessor(
             storage=mock_storage,

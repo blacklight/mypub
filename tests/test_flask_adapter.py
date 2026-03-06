@@ -48,9 +48,7 @@ def client(app):
 
 class TestWebFingerRoute:
     def test_webfinger_success(self, client):
-        resp = client.get(
-            "/.well-known/webfinger?resource=acct:blog@blog.example.com"
-        )
+        resp = client.get("/.well-known/webfinger?resource=acct:blog@blog.example.com")
         assert resp.status_code == 200
         data = resp.get_json()
         assert data["subject"] == "acct:blog@blog.example.com"
@@ -61,9 +59,7 @@ class TestWebFingerRoute:
         assert resp.status_code == 400
 
     def test_webfinger_wrong_user(self, client):
-        resp = client.get(
-            "/.well-known/webfinger?resource=acct:other@blog.example.com"
-        )
+        resp = client.get("/.well-known/webfinger?resource=acct:other@blog.example.com")
         assert resp.status_code == 404
 
 
@@ -172,12 +168,20 @@ class TestRateLimiting:
         bind_activitypub(app, handler, rate_limiter=rate_limiter)
         client = app.test_client()
 
-        activity = json.dumps({"type": "Follow", "id": "x", "actor": "y", "object": "z"})
+        activity = json.dumps(
+            {"type": "Follow", "id": "x", "actor": "y", "object": "z"}
+        )
 
         # First two requests should be OK (well, they'll fail signature verification)
-        resp1 = client.post("/ap/inbox", data=activity, content_type="application/activity+json")
-        resp2 = client.post("/ap/inbox", data=activity, content_type="application/activity+json")
+        client.post(
+            "/ap/inbox", data=activity, content_type="application/activity+json"
+        )
+        client.post(
+            "/ap/inbox", data=activity, content_type="application/activity+json"
+        )
 
         # Third request should be rate-limited
-        resp3 = client.post("/ap/inbox", data=activity, content_type="application/activity+json")
+        resp3 = client.post(
+            "/ap/inbox", data=activity, content_type="application/activity+json"
+        )
         assert resp3.status_code == 429

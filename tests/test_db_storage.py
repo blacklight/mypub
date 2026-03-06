@@ -102,9 +102,7 @@ class TestInteractions:
         )
 
         storage.store_interaction(interaction)
-        interactions = storage.get_interactions(
-            "https://blog.example.com/post/1"
-        )
+        interactions = storage.get_interactions("https://blog.example.com/post/1")
 
         assert len(interactions) == 1
         assert interactions[0].content == "<p>Great post!</p>"
@@ -163,9 +161,7 @@ class TestInteractions:
             InteractionType.LIKE,
         )
 
-        confirmed = storage.get_interactions(
-            "https://blog.example.com/post/1"
-        )
+        confirmed = storage.get_interactions("https://blog.example.com/post/1")
         assert len(confirmed) == 0
 
         deleted = storage.get_interactions(
@@ -198,9 +194,7 @@ class TestInteractions:
             )
         )
 
-        interactions = storage.get_interactions(
-            "https://blog.example.com/post/1"
-        )
+        interactions = storage.get_interactions("https://blog.example.com/post/1")
         assert len(interactions) == 1
         assert interactions[0].content == "Updated"
 
@@ -215,9 +209,7 @@ class TestActivities:
 
     def test_pagination(self, storage):
         for i in range(10):
-            storage.store_activity(
-                f"act-{i}", {"id": f"act-{i}", "type": "Create"}
-            )
+            storage.store_activity(f"act-{i}", {"id": f"act-{i}", "type": "Create"})
 
         page1 = storage.get_activities(limit=3, offset=0)
         assert len(page1) == 3
@@ -241,9 +233,7 @@ class TestActorCache:
             {"name": "Alice", "type": "Person"},
         )
 
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached is not None
         assert cached["name"] == "Alice"
 
@@ -255,9 +245,7 @@ class TestActorCache:
             fetched_at=old_time,
         )
 
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached is None
 
     def test_cache_update(self, storage):
@@ -270,9 +258,7 @@ class TestActorCache:
             {"name": "Alice Updated"},
         )
 
-        cached = storage.get_cached_actor(
-            "https://mastodon.social/users/alice"
-        )
+        cached = storage.get_cached_actor("https://mastodon.social/users/alice")
         assert cached is not None
         assert cached["name"] == "Alice Updated"
 

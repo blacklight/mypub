@@ -3,12 +3,11 @@ Tests for outbox processing — publish, fan-out delivery, retry logic.
 """
 
 from datetime import datetime, timezone
-from unittest.mock import MagicMock, patch, call
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from mypub._model import Follower, Object
-from mypub.crypto._keys import generate_rsa_keypair
 from mypub.handlers._outbox import OutboxProcessor, AS_PUBLIC
 
 
@@ -71,9 +70,7 @@ class TestBuildActivities:
         )
         assert activity["type"] == "Delete"
         assert activity["object"]["type"] == "Tombstone"
-        assert (
-            activity["object"]["id"] == "https://blog.example.com/post/1"
-        )
+        assert activity["object"]["id"] == "https://blog.example.com/post/1"
 
 
 class TestCollectInboxes:
@@ -139,9 +136,8 @@ class TestDelivery:
         # Should deliver to the follower inbox
         mock_requests.post.assert_called_once()
         call_kwargs = mock_requests.post.call_args
-        assert (
-            "remote.example.com" in call_kwargs[0][0]
-            or "remote.example.com" in str(call_kwargs)
+        assert "remote.example.com" in call_kwargs[0][0] or "remote.example.com" in str(
+            call_kwargs
         )
 
     @patch("mypub.handlers._outbox.requests")

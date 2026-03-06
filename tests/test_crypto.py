@@ -34,9 +34,7 @@ class TestKeyExportAndLoad:
         loaded = load_public_key(pem)
         assert isinstance(loaded, rsa.RSAPublicKey)
         # Verify the loaded key matches
-        assert (
-            export_public_key_pem(loaded) == pem
-        )
+        assert export_public_key_pem(loaded) == pem
 
     def test_export_and_load_private_key(self, rsa_keypair):
         private_key, _ = rsa_keypair

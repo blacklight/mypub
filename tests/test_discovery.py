@@ -24,13 +24,15 @@ class TestWebFinger:
         assert len(links) == 2
 
         # Self link
-        self_link = next(l for l in links if l["rel"] == "self")
+        self_link = next(link for link in links if link["rel"] == "self")
         assert self_link["type"] == "application/activity+json"
         assert self_link["href"] == "https://example.com/ap/actor"
 
         # Profile page link
         profile_link = next(
-            l for l in links if l["rel"] == "http://webfinger.net/rel/profile-page"
+            link
+            for link in links
+            if link["rel"] == "http://webfinger.net/rel/profile-page"
         )
         assert profile_link["type"] == "text/html"
 
@@ -52,10 +54,7 @@ class TestNodeInfoDiscovery:
 
         assert len(result["links"]) == 1
         link = result["links"][0]
-        assert (
-            link["rel"]
-            == "http://nodeinfo.diaspora.software/ns/schema/2.1"
-        )
+        assert link["rel"] == "http://nodeinfo.diaspora.software/ns/schema/2.1"
         assert link["href"] == "https://blog.example.com/nodeinfo/2.1"
 
     def test_trailing_slash_stripped(self):

@@ -89,8 +89,7 @@ class DbActivityPubStorage(ActivityPubStorage):
         session = self.session_factory()
         try:
             return [
-                row.to_follower()
-                for row in session.query(self.follower_model).all()
+                row.to_follower() for row in session.query(self.follower_model).all()
             ]
         finally:
             session.close()
@@ -101,9 +100,7 @@ class DbActivityPubStorage(ActivityPubStorage):
         session = self.session_factory()
         try:
             try:
-                session.add(
-                    self.interaction_model.from_interaction(interaction)
-                )
+                session.add(self.interaction_model.from_interaction(interaction))
                 session.commit()
                 return
             except IntegrityError:
@@ -125,9 +122,7 @@ class DbActivityPubStorage(ActivityPubStorage):
             )
 
             if existing is None:
-                session.add(
-                    self.interaction_model.from_interaction(interaction)
-                )
+                session.add(self.interaction_model.from_interaction(interaction))
                 session.commit()
                 return
 

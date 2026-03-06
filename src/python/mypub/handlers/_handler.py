@@ -12,7 +12,6 @@ from markupsafe import Markup
 
 from .._model import (
     Actor,
-    Follower,
     Interaction,
     Object,
     AP_CONTEXT,
@@ -78,9 +77,7 @@ class ActivityPubHandler:
         self.icon_url = actor_config.get("icon_url", "")
         self.actor_path = actor_config.get("actor_path", "/ap/actor")
         self.actor_type = actor_config.get("type", "Person")
-        self.manually_approves = actor_config.get(
-            "manually_approves_followers", False
-        )
+        self.manually_approves = actor_config.get("manually_approves_followers", False)
 
         # Derived URLs
         self.actor_id = f"{self.base_url}{self.actor_path}"
@@ -106,13 +103,9 @@ class ActivityPubHandler:
         elif isinstance(private_key, rsa.RSAPrivateKey):
             self._private_key = private_key
         else:
-            raise ValueError(
-                "Either private_key or private_key_path must be provided"
-            )
+            raise ValueError("Either private_key or private_key_path must be provided")
 
-        self.public_key_pem = export_public_key_pem(
-            self._private_key.public_key()
-        )
+        self.public_key_pem = export_public_key_pem(self._private_key.public_key())
 
         # Software info
         self.software_name = software_name
@@ -225,11 +218,7 @@ class ActivityPubHandler:
             outbox=self.outbox_url,
             followers=self.followers_url,
             following=self.following_url,
-            icon=(
-                {"type": "Image", "url": self.icon_url}
-                if self.icon_url
-                else None
-            ),
+            icon=({"type": "Image", "url": self.icon_url} if self.icon_url else None),
             public_key_pem=self.public_key_pem,
             manually_approves_followers=self.manually_approves,
             discoverable=True,
@@ -272,9 +261,7 @@ class ActivityPubHandler:
 
     # ---------- Discovery ----------
 
-    def get_webfinger_response(
-        self, resource: str | None = None
-    ) -> dict | None:
+    def get_webfinger_response(self, resource: str | None = None) -> dict | None:
         """
         Build the WebFinger response for the configured actor.
 
@@ -342,6 +329,4 @@ class ActivityPubHandler:
         :param template: Optional custom template.
         :return: The rendered HTML markup.
         """
-        return self.renderer.render_interactions(
-            interactions, template=template
-        )
+        return self.renderer.render_interactions(interactions, template=template)

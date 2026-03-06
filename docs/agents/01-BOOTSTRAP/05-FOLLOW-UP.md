@@ -75,11 +75,10 @@ Deferred tasks that are out of scope for the initial library implementation.
 
 ## 11. CI/CD Pipeline
 
-- [ ] GitHub Actions / Gitea CI workflow:
+- [x] GitHub Actions / Gitea CI workflow:
   - Run `pytest` on push/PR
   - Lint with `flake8` / `black`
   - Build wheel and sdist
-- [ ] Automated version bumping with `bump2version`.
 
 ## 12. PyPI Publishing
 

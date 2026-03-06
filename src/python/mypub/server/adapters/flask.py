@@ -18,9 +18,13 @@ Flask = flask_upstream.Flask
 jsonify = flask_upstream.jsonify
 request = flask_upstream.request
 
-from ...handlers import ActivityPubHandler
-from ..._exceptions import ActivityPubError, RateLimitError, SignatureVerificationError
-from ..._rate_limit import RateLimiter
+from ...handlers import ActivityPubHandler  # noqa: E402
+from ..._exceptions import (  # noqa: E402
+    ActivityPubError,
+    RateLimitError,
+    SignatureVerificationError,
+)  # noqa: E402
+from ..._rate_limit import RateLimiter  # noqa: E402
 
 # Content types
 ACTIVITY_JSON = "application/activity+json"
@@ -30,10 +34,7 @@ JRD_JSON = "application/jrd+json"
 def _wants_activity_json() -> bool:
     """Check if the client prefers ActivityPub JSON."""
     accept = request.headers.get("Accept", "")
-    return (
-        "application/activity+json" in accept
-        or "application/ld+json" in accept
-    )
+    return "application/activity+json" in accept or "application/ld+json" in accept
 
 
 def bind_activitypub(

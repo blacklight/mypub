@@ -249,9 +249,7 @@ class InboxProcessor:
 
         return None
 
-    def _handle_undo_interaction(
-        self, activity: Activity, inner: dict
-    ) -> None:
+    def _handle_undo_interaction(self, activity: Activity, inner: dict) -> None:
         """Handle Undo of a Like or Announce."""
         actor_id = activity.actor
         inner_type = inner.get("type", "")
@@ -266,7 +264,11 @@ class InboxProcessor:
 
         # Find the target resource
         obj = inner.get("object", "")
-        target = obj if isinstance(obj, str) else obj.get("id", "") if isinstance(obj, dict) else ""
+        target = (
+            obj
+            if isinstance(obj, str)
+            else obj.get("id", "") if isinstance(obj, dict) else ""
+        )
 
         if target:
             self.storage.delete_interaction(actor_id, target, interaction_type)
@@ -329,7 +331,11 @@ class InboxProcessor:
     def _handle_like(self, activity: Activity, raw: dict) -> dict | None:
         """Handle an incoming Like activity."""
         obj = activity.object
-        target = obj if isinstance(obj, str) else obj.get("id", "") if isinstance(obj, dict) else ""
+        target = (
+            obj
+            if isinstance(obj, str)
+            else obj.get("id", "") if isinstance(obj, dict) else ""
+        )
 
         if not target:
             return None
@@ -373,7 +379,11 @@ class InboxProcessor:
     def _handle_announce(self, activity: Activity, raw: dict) -> dict | None:
         """Handle an incoming Announce (boost) activity."""
         obj = activity.object
-        target = obj if isinstance(obj, str) else obj.get("id", "") if isinstance(obj, dict) else ""
+        target = (
+            obj
+            if isinstance(obj, str)
+            else obj.get("id", "") if isinstance(obj, dict) else ""
+        )
 
         if not target:
             return None
@@ -515,7 +525,5 @@ class InboxProcessor:
 
             return True
         except Exception:
-            logger.warning(
-                "Failed to deliver to %s", inbox_url, exc_info=True
-            )
+            logger.warning("Failed to deliver to %s", inbox_url, exc_info=True)
             return False
