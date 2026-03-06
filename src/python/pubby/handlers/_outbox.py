@@ -6,6 +6,7 @@ import json
 import logging
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
 import requests
@@ -35,6 +36,7 @@ class OutboxProcessor:
     :param followers_collection_url: URL of the followers collection.
     :param max_retries: Maximum delivery retry attempts.
     :param retry_base_delay: Base delay (seconds) for exponential backoff.
+    :param max_delivery_workers: Maximum threads for concurrent fan-out delivery.
     :param user_agent: User-Agent for outgoing HTTP requests.
     :param http_timeout: Timeout for outgoing HTTP requests.
     """
@@ -49,6 +51,7 @@ class OutboxProcessor:
         *,
         max_retries: int = 3,
         retry_base_delay: float = 10.0,
+        max_delivery_workers: int = 10,
         user_agent: str = "pubby/0.0.1",
         http_timeout: float = 15.0,
     ):
@@ -59,6 +62,7 @@ class OutboxProcessor:
         self.followers_collection_url = followers_collection_url
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
+        self.max_delivery_workers = max_delivery_workers
         self.user_agent = user_agent
         self.http_timeout = http_timeout
 
@@ -158,12 +162,27 @@ class OutboxProcessor:
         activity_id = activity.get("id", self._new_activity_id())
         self.storage.store_activity(activity_id, activity)
 
-        # Fan-out delivery
+        # Fan-out delivery (concurrent)
         followers = self.storage.get_followers()
         inboxes = self._collect_inboxes(followers)
 
-        for inbox_url in inboxes:
-            self._deliver_with_retry(inbox_url, activity)
+        with ThreadPoolExecutor(
+            max_workers=min(self.max_delivery_workers, len(inboxes) or 1)
+        ) as pool:
+            futures = {
+                pool.submit(self._deliver_with_retry, url, activity): url
+                for url in inboxes
+            }
+            for future in as_completed(futures):
+                url = futures[future]
+                try:
+                    future.result()
+                except Exception:
+                    logger.error(
+                        "Delivery to %s raised an unexpected exception",
+                        url,
+                        exc_info=True,
+                    )
 
         return activity
 

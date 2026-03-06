@@ -2,6 +2,7 @@
 Tests for outbox processing — publish, fan-out delivery, retry logic.
 """
 
+import time
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
@@ -218,3 +219,57 @@ class TestOutboxCollection:
         assert collection["type"] == "OrderedCollection"
         assert collection["totalItems"] == 2
         assert len(collection["orderedItems"]) == 2
+
+
+class TestConcurrentDelivery:
+    @patch("pubby.handlers._outbox.requests")
+    def test_fanout_is_concurrent(self, mock_requests, mock_storage, private_key):
+        """Verify deliveries run in parallel, not sequentially."""
+        num_followers = 5
+        sleep_per_delivery = 0.2
+
+        mock_storage.get_followers.return_value = [
+            Follower(
+                actor_id=f"https://remote.example.com/users/user{i}",
+                inbox=f"https://remote{i}.example.com/inbox",
+            )
+            for i in range(num_followers)
+        ]
+
+        def slow_post(*args, **kwargs):
+            time.sleep(sleep_per_delivery)
+            resp = MagicMock()
+            resp.status_code = 202
+            return resp
+
+        mock_requests.post.side_effect = slow_post
+
+        processor = OutboxProcessor(
+            storage=mock_storage,
+            actor_id="https://blog.example.com/ap/actor",
+            private_key=private_key,
+            key_id="https://blog.example.com/ap/actor#main-key",
+            max_retries=1,
+            max_delivery_workers=num_followers,
+        )
+
+        activity = processor.build_create_activity(
+            Object(
+                id="https://blog.example.com/post/1",
+                type="Article",
+                content="<p>Test</p>",
+                attributed_to="https://blog.example.com/ap/actor",
+            )
+        )
+
+        start = time.monotonic()
+        processor.publish(activity)
+        elapsed = time.monotonic() - start
+
+        assert mock_requests.post.call_count == num_followers
+        # Sequential would take ~1.0s; concurrent should be ~0.2s
+        sequential_time = sleep_per_delivery * num_followers
+        assert elapsed < sequential_time * 0.6, (
+            f"Delivery took {elapsed:.2f}s, expected < {sequential_time * 0.6:.2f}s "
+            f"(sequential would be ~{sequential_time:.2f}s)"
+        )

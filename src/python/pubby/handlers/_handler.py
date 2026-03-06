@@ -48,6 +48,7 @@ class ActivityPubHandler:
     :param user_agent: User-Agent string for outgoing HTTP requests.
     :param http_timeout: Timeout in seconds for outgoing HTTP requests.
     :param max_retries: Maximum delivery retry attempts.
+    :param max_delivery_workers: Maximum threads for concurrent delivery fan-out.
     :param software_name: Software name for NodeInfo.
     :param software_version: Software version for NodeInfo.
     """
@@ -64,6 +65,7 @@ class ActivityPubHandler:
         user_agent: str = "pubby/0.0.1",
         http_timeout: float = 15.0,
         max_retries: int = 3,
+        max_delivery_workers: int = 10,
         software_name: str = "pubby",
         software_version: str = "0.0.1",
     ):
@@ -129,6 +131,7 @@ class ActivityPubHandler:
             key_id=self.key_id,
             followers_collection_url=self.followers_url,
             max_retries=max_retries,
+            max_delivery_workers=max_delivery_workers,
             user_agent=user_agent,
             http_timeout=http_timeout,
         )
