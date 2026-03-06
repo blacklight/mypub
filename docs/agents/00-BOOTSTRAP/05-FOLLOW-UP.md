@@ -82,9 +82,9 @@ Deferred tasks that are out of scope for the initial library implementation.
 
 ## 12. PyPI Publishing
 
-- [ ] Register `pubby` on PyPI.
-- [ ] Set up trusted publishers for automated release on tag.
-- [ ] Add classifiers: `Framework :: Flask`, `Topic :: Internet :: WWW/HTTP :: Dynamic Content`.
+- [x] Register `pubby` on PyPI.
+- [x] Set up trusted publishers for automated release on tag.
+- [ ] Add classifiers: `Framework :: Flask` (and FastAPI+Tornado once the adapters are ready), `Topic :: Internet :: WWW/HTTP :: Dynamic Content`.
 
 ## 13. Additional Testing
 
