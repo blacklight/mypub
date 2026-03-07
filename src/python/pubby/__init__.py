@@ -19,6 +19,7 @@ from ._model import (
     ObjectType,
 )
 from ._rate_limit import RateLimiter
+from .webfinger import Mention, extract_mentions, resolve_actor_url
 
 __version__ = "0.1.2"
 
@@ -31,13 +32,16 @@ __all__ = [
     "Actor",
     "DeliveryError",
     "DeliveryStatus",
+    "extract_mentions",
     "Follower",
     "Interaction",
     "InteractionStatus",
     "InteractionType",
+    "Mention",
     "Object",
     "ObjectType",
     "RateLimiter",
     "RateLimitError",
+    "resolve_actor_url",
     "SignatureVerificationError",
 ]

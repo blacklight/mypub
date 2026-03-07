@@ -378,6 +378,115 @@ handler = ActivityPubHandler(
 )
 ```
 
+## API
+
+### Data Model
+
+#### `Object`
+
+Represents an ActivityPub object (Note, Article, etc.):
+
+```python
+from pubby import Object
+
+obj = Object(
+    id="https://example.com/posts/1",
+    type="Note",
+    content="<p>Hello!</p>",
+    url="https://example.com/posts/1",
+    attributed_to="https://example.com/ap/actor",
+    media_type="text/html",  # optional, serialized as "mediaType" in JSON-LD
+)
+```
+
+Key fields: `id`, `type`, `name`, `content`, `url`, `attributed_to`,
+`published`, `updated`, `summary`, `to`, `cc`, `tag`, `media_type`.
+
+#### `Mention`
+
+A resolved `@user@domain` mention:
+
+```python
+from pubby import Mention
+
+m = Mention(username="alice", domain="mastodon.social", actor_url="https://mastodon.social/users/alice")
+m.acct        # "@alice@mastodon.social"
+m.to_tag()    # {"type": "Mention", "href": "https://mastodon.social/users/alice", "name": "@alice@mastodon.social"}
+```
+
+### WebFinger Client
+
+#### `resolve_actor_url(username, domain, *, timeout=10) -> str`
+
+Resolve the ActivityPub actor URL for `@username@domain` via
+[WebFinger](https://www.rfc-editor.org/rfc/rfc7033) (RFC 7033). Returns the
+`self` link with an `application/*` media type, or falls back to
+`https://{domain}/@{username}` on failure.
+
+```python
+from pubby import resolve_actor_url
+
+url = resolve_actor_url("alice", "mastodon.social")
+# "https://mastodon.social/@alice"
+
+url = resolve_actor_url("bob", "pleroma.example")
+# "https://pleroma.example/users/bob"
+```
+
+This works across all ActivityPub implementations (Mastodon, Pleroma, Akkoma,
+Misskey, etc.) since WebFinger is the standard discovery mechanism.
+
+#### `extract_mentions(text, *, timeout=10) -> list[Mention]`
+
+Find all `@user@domain` patterns in a text string, resolve each via WebFinger,
+and return a list of `Mention` objects. Duplicates are deduplicated
+(case-insensitive).
+
+```python
+from pubby import extract_mentions
+
+text = "Hello @alice@mastodon.social and @bob@pleroma.example!"
+mentions = extract_mentions(text)
+
+# Build ActivityPub tag array and cc list:
+tags = [m.to_tag() for m in mentions]
+cc = [m.actor_url for m in mentions]
+```
+
+### Publishing
+
+#### `handler.publish_object(obj, activity_type="Create")`
+
+Publish an `Object` to all followers. Fan-out is concurrent with automatic
+retry and shared-inbox deduplication.
+
+```python
+handler.publish_object(article)                              # Create
+handler.publish_object(updated_article, activity_type="Update")
+handler.publish_object(deleted_article, activity_type="Delete")
+```
+
+### Storage
+
+#### `ActivityPubStorage`
+
+Abstract base class. Built-in adapters:
+
+- `pubby.storage.adapters.db.init_db_storage(url)` — SQLAlchemy (any DB)
+- `pubby.storage.adapters.file.FileActivityPubStorage(data_dir)` — JSON files
+
+See [Custom Storage](#custom-storage) for implementing your own.
+
+### Crypto
+
+```python
+from pubby.crypto import generate_rsa_keypair, export_private_key_pem, load_private_key
+
+private_key, public_key = generate_rsa_keypair()
+pem = export_private_key_pem(private_key)
+private_key = load_private_key("/path/to/key.pem")
+```
+
 ## Tests
 
 ```bash
