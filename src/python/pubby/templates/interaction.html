@@ -1,6 +1,8 @@
 <div class="ap-interaction ap-interaction-{{ interaction.interaction_type.value }}">
   {% set safe_author_url = safe_url(interaction.author_url) %}
   {% set safe_author_photo = safe_url(interaction.author_photo) %}
+  {% set fqn = actor_fqn(interaction.source_actor_id or interaction.author_url) %}
+  {% set safe_object_url = safe_url(interaction.object_id) %}
 
   <div class="ap-interaction-author">
     {% if safe_author_photo %}
@@ -12,6 +14,11 @@
         <a class="ap-interaction-author-name" href="{{ safe_author_url }}">{{ interaction.author_name or hostname(safe_author_url) }}</a>
       {% else %}
         <span class="ap-interaction-author-name">{{ interaction.author_name }}</span>
+      {% endif %}
+      {% if fqn %}
+        <span class="ap-interaction-author-fqn">
+            <a href="{{ safe_author_url }}">{{ fqn }}</a>
+        </span>
       {% endif %}
     {% endif %}
   </div>
@@ -30,11 +37,16 @@
     {% endif %}
   </div>
 
-  {% if interaction.published %}
-    <div class="ap-interaction-date">
-      <time datetime="{{ interaction.published.isoformat() if interaction.published else '' }}">
-        {{ format_datetime(interaction.published) }}
-      </time>
-    </div>
-  {% endif %}
+  <div class="ap-interaction-footer">
+    {% if interaction.published %}
+      <span class="ap-interaction-date">
+        <time datetime="{{ interaction.published.isoformat() if interaction.published else '' }}">
+          {{ format_datetime(interaction.published) }}
+        </time>
+      </span>
+    {% endif %}
+    {% if safe_object_url and interaction.interaction_type.value in ("reply", "mention") %}
+      <a class="ap-interaction-source-link" href="{{ safe_object_url }}" target="_blank">original post ↗</a>
+    {% endif %}
+  </div>
 </div>

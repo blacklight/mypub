@@ -137,6 +137,26 @@ class TemplateUtils:
             return Markup("")
         return _sanitize_html(str(html))
 
+    @staticmethod
+    def actor_fqn(actor_url: object) -> str:
+        """Derive ``@user@domain`` from an ActivityPub actor URL."""
+        if not actor_url:
+            return ""
+        url = str(actor_url).strip()
+        parsed = urlparse(url)
+        domain = parsed.hostname or ""
+        path = parsed.path.rstrip("/")
+        # Common patterns: /@user, /users/user, /user
+        if path.startswith("/@"):
+            user = path[2:]
+        elif "/users/" in path:
+            user = path.split("/users/")[-1]
+        else:
+            user = path.rsplit("/", 1)[-1] if "/" in path else ""
+        if not user or not domain:
+            return ""
+        return f"@{user}@{domain}"
+
     @classmethod
     def to_dict(cls) -> dict[str, Callable]:
         helpers: dict[str, Callable] = {}

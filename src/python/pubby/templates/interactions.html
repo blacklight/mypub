@@ -50,6 +50,12 @@
   color: var(--color-fg-secondary);
 }
 
+.ap-interaction .ap-interaction-author-fqn a {
+  font-size: 0.75em;
+  color: var(--color-fg-tertiary);
+  margin-left: 0.25em;
+}
+
 .ap-interaction .ap-interaction-body {
   margin-top: 0.5em;
 }
@@ -66,11 +72,22 @@
 .ap-interaction .ap-interaction-date {
   font-size: 0.6em;
   color: var(--color-fg-tertiary);
+}
+
+.ap-interaction .ap-interaction-footer {
+  display: flex;
+  align-items: center;
+  gap: 1em;
   margin-top: 0.5em;
 }
 
-.ap-interaction .ap-interaction-content a {
-  color: inherit;
+.ap-interaction .ap-interaction-source-link {
+  font-size: 0.6em;
+  color: var(--color-fg-tertiary);
+  text-decoration: none;
+}
+
+.ap-interaction .ap-interaction-source-link:hover {
   text-decoration: underline;
 }
 
