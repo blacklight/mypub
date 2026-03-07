@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- `media_type` field on `Object` — serialized as `mediaType` in the
+  ActivityPub JSON-LD output. Allows specifying the content type
+  (e.g. `text/html`) for the object's `content` field.
+  Also parsed from incoming objects via `Object.build()`.
+
 ## [0.1.1]
 
 ### Fixed
