@@ -20,7 +20,7 @@ from ._model import (
 )
 from ._rate_limit import RateLimiter
 
-__version__ = "0.0.1"
+__version__ = "0.1.0"
 
 __all__ = [
     "Activity",
