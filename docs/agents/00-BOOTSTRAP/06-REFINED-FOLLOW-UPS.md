@@ -6,7 +6,7 @@ Please use `/home/blacklight/git_tree/pubby/docs/agents/00-BOOTSTRAP/04-PLAN.md`
 
 1. [x] **Synchronous/blocking delivery**: Handle requests concurrently through a `ThreadPoolExecutor`. 
 2. [x] Add **FastAPI** and **Tornado** adapters
-3. [ ] Write down a **README**. Use the following references: `~/git_tree/webmentions/README.md` as a template, and all the relevant parts under `./docs/agents`.
+3. [x] Write down a **README**. Use the following references: `~/git_tree/webmentions/README.md` as a template, and all the relevant parts under `./docs/agents`.
 4. [ ] **Madblog** integration
     - [ ] Wire to the existing Flask implementation
     - [ ] Handle `on_content_change`
