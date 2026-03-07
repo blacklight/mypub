@@ -236,6 +236,22 @@ class InteractionsRenderer:
         :return: Rendered HTML markup.
         """
         rendered = [self.render_interaction(i) for i in interactions]
+        counts = {"likes": 0, "boosts": 0, "replies": 0, "mentions": 0}
+        for i in interactions:
+            itype = getattr(i, "interaction_type", None)
+            if itype is not None:
+                type_val = itype.value if hasattr(itype, "value") else str(itype)
+                if type_val == "like":
+                    counts["likes"] += 1
+                elif type_val == "boost":
+                    counts["boosts"] += 1
+                elif type_val == "reply":
+                    counts["replies"] += 1
+                else:
+                    counts["mentions"] += 1
         return self._get_markup(
-            template, default="interactions.html", interactions=rendered
+            template,
+            default="interactions.html",
+            interactions=rendered,
+            counts=counts,
         )

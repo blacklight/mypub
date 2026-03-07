@@ -91,6 +91,20 @@
   text-decoration: underline;
 }
 
+.ap-interactions-summary {
+  display: flex;
+  gap: 1.25em;
+  font-size: 0.85em;
+  color: var(--color-fg-tertiary);
+  margin-bottom: 1em;
+}
+
+.ap-interactions-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3em;
+}
+
 .ap-interactions h2 {
   color: var(--color-fg-secondary);
   margin-top: 0.5em;
@@ -102,7 +116,15 @@
 
 {% if interactions is defined and interactions|length > 0 %}
 <div class="ap-interactions">
-  <h2>🌐 &nbsp; {{ interactions | length }} Fediverse Interaction{% if interactions | length != 1 %}s{% endif %}</h2>
+  <h2>🌐 &nbsp; <a href="https://activitypub.rocks/" target="_blank">ActivityPub</a></h2>
+  {% if counts is defined %}
+  <div class="ap-interactions-summary">
+    <span>⭐ {{ counts.likes }}</span>
+    <span>🔁 {{ counts.boosts }}</span>
+    <span>💬 {{ counts.replies }}</span>
+    <span>📣 {{ counts.mentions }}</span>
+  </div>
+  {% endif %}
   {% for html in interactions %}
     {{ html }}
   {% endfor %}
