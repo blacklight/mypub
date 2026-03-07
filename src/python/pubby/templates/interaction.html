@@ -19,7 +19,7 @@
   <div class="ap-interaction-body">
     {% if interaction.interaction_type.value == "reply" %}
       {% if interaction.content %}
-        <div class="ap-interaction-content">{{ interaction.content }}</div>
+        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
       {% endif %}
     {% elif interaction.interaction_type.value == "like" %}
       <span class="ap-interaction-label">⭐ liked this</span>
