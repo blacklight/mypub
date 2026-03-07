@@ -4,6 +4,7 @@ Render ActivityPub interactions as HTML — same pattern as webmentions renderer
 
 import datetime
 import os
+import re
 from pathlib import Path
 from typing import Callable, Collection, Union
 from urllib.parse import urlparse
@@ -14,6 +15,72 @@ from markupsafe import Markup
 from .._model import Interaction
 
 TemplateLike = Union[str, Path, Template]
+
+# HTML sanitisation: tags and attributes allowed in interaction content.
+_ALLOWED_TAGS = frozenset(
+    {
+        "a",
+        "p",
+        "br",
+        "span",
+        "strong",
+        "em",
+        "b",
+        "i",
+        "u",
+        "s",
+        "del",
+        "blockquote",
+        "pre",
+        "code",
+        "ul",
+        "ol",
+        "li",
+    }
+)
+_ALLOWED_ATTRS = frozenset(
+    {
+        "href",
+        "class",
+        "rel",
+        "translate",
+        "title",
+        "lang",
+        "dir",
+    }
+)
+_TAG_RE = re.compile(r"<(/?)(\w+)([^>]*)>", re.DOTALL)
+_ATTR_RE = re.compile(r'(\w[\w-]*)=["\']([^"\']*)["\']')
+
+
+def _sanitize_html(html: str) -> Markup:
+    """
+    Strip disallowed tags and attributes from *html*, returning a
+    :class:`Markup` instance safe for rendering.
+    """
+
+    def _replace_tag(m: re.Match) -> str:
+        slash, tag, attrs_str = m.group(1), m.group(2).lower(), m.group(3)
+        if tag not in _ALLOWED_TAGS:
+            return ""
+        if slash:
+            return f"</{tag}>"
+        # Filter attributes
+        safe_attrs = []
+        for am in _ATTR_RE.finditer(attrs_str):
+            attr_name = am.group(1).lower()
+            if attr_name in _ALLOWED_ATTRS:
+                # Extra check: only allow safe href schemes
+                if attr_name == "href":
+                    val = am.group(2).strip()
+                    parsed = urlparse(val)
+                    if parsed.scheme.lower() not in ("http", "https", ""):
+                        continue
+                safe_attrs.append(f'{am.group(1)}="{am.group(2)}"')
+        attr_str = (" " + " ".join(safe_attrs)) if safe_attrs else ""
+        return f"<{tag}{attr_str}>"
+
+    return Markup(_TAG_RE.sub(_replace_tag, html))
 
 
 class TemplateUtils:
@@ -62,6 +129,13 @@ class TemplateUtils:
         if not parsed.netloc:
             return ""
         return u
+
+    @staticmethod
+    def sanitize_html(html: object) -> Markup:
+        """Sanitize HTML content, returning a safe :class:`Markup` instance."""
+        if not html:
+            return Markup("")
+        return _sanitize_html(str(html))
 
     @classmethod
     def to_dict(cls) -> dict[str, Callable]:
