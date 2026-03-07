@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Fixed
+
+- `export_private_key_pem` is now exported from `pubby.crypto` (was missing
+  from the package `__init__`).
+
 ## [0.1.0]
 
 ### Added
