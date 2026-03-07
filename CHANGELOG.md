@@ -11,6 +11,19 @@ All notable changes to this project will be documented in this file.
   and Akkoma to detect the post language instead of showing a "Translate"
   button. `Object.build()` parses language from incoming `contentMap` keys
   or an explicit `language` field.
+- Summary header in the interactions container template showing counters
+  for replies (💬), boosts (🔁), likes (⭐), and mentions (📣). Only
+  non-zero counters are displayed.
+- Actor FQN (`@user@domain`) shown next to author name in interaction
+  cards, derived from the actor URL via `actor_fqn()` template helper.
+- "original post ↗" link in the interaction footer for replies and
+  mentions, linking to the source `object_id`.
+
+### Fixed
+
+- Interaction reply content now rendered as HTML instead of escaped text.
+  Added `_sanitize_html()` allowlist-based sanitizer and `sanitize_html()`
+  Jinja2 template helper to safely render federated HTML content.
 
 ## 0.1.3
 
