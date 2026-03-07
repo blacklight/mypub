@@ -12,6 +12,7 @@ Design decisions are documented under `./docs/agents`. Directories and files fol
 
 - **Always run `pytest`** after code modifications, before committing. Fix any issues it reports before proceeding.
 - Every new feature or code change should be accompanied by at least a unit test in order to keep test coverage high.
+- **Do not commit** after implementing, unless prompted explicitly.
 
 ## Style
 
