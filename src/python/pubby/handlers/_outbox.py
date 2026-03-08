@@ -18,6 +18,7 @@ from .._model import (
 )
 from ..crypto import sign_request
 from ..storage import ActivityPubStorage
+from ._client import get_default_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +53,7 @@ class OutboxProcessor:
         max_retries: int = 3,
         retry_base_delay: float = 10.0,
         max_delivery_workers: int = 10,
-        user_agent: str = "pubby/0.0.1",
+        user_agent: str | None = None,
         http_timeout: float = 15.0,
     ):
         self.storage = storage
@@ -63,7 +64,7 @@ class OutboxProcessor:
         self.max_retries = max_retries
         self.retry_base_delay = retry_base_delay
         self.max_delivery_workers = max_delivery_workers
-        self.user_agent = user_agent
+        self.user_agent = user_agent or get_default_user_agent(actor_id)
         self.http_timeout = http_timeout
 
     def _new_activity_id(self) -> str:

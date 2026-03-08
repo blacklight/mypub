@@ -23,6 +23,7 @@ from .._exceptions import SignatureVerificationError
 from ..crypto import sign_request, verify_request
 from ..crypto._keys import load_public_key
 from ..storage import ActivityPubStorage
+from ._client import get_default_user_agent
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,8 @@ class InboxProcessor:
     :param private_key: RSA private key for signing outgoing Accept responses.
     :param key_id: Key ID for HTTP signatures (e.g. ``actor_id#main-key``).
     :param on_interaction_received: Optional callback when an interaction is stored.
-    :param user_agent: User-Agent for outgoing HTTP requests.
+    :param user_agent: User-Agent for outgoing HTTP requests. Default:
+        ``pubby/{version} (+{actor_id})``
     :param http_timeout: Timeout for outgoing HTTP requests.
     """
 
@@ -50,7 +52,7 @@ class InboxProcessor:
         key_id: str,
         *,
         on_interaction_received: Callable[[Interaction], None] | None = None,
-        user_agent: str = "pubby/0.0.1",
+        user_agent: str | None = None,
         http_timeout: float = 15.0,
     ):
         self.storage = storage
@@ -58,8 +60,8 @@ class InboxProcessor:
         self.private_key = private_key
         self.key_id = key_id
         self.on_interaction_received = on_interaction_received
-        self.user_agent = user_agent
         self.http_timeout = http_timeout
+        self.user_agent = user_agent or get_default_user_agent(actor_id)
 
     def _fetch_actor(self, actor_id: str) -> dict | None:
         """Fetch a remote actor document, using cache if available."""
