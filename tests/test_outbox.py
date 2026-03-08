@@ -105,6 +105,47 @@ class TestCollectInboxes:
 
 
 class TestDelivery:
+    @patch("pubby.handlers._outbox.sign_request")
+    @patch("pubby.handlers._outbox.requests")
+    def test_delivery_signs_content_headers(
+        self, mock_requests, mock_sign_request, outbox_processor, mock_storage
+    ):
+        mock_storage.get_followers.return_value = [
+            Follower(
+                actor_id="https://remote.example.com/users/alice",
+                inbox="https://remote.example.com/users/alice/inbox",
+            ),
+        ]
+
+        mock_sign_request.return_value = {
+            "Signature": "sig",
+            "Date": "now",
+            "Host": "remote.example.com",
+            "Digest": "SHA-256=...",
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 202
+        mock_requests.post.return_value = mock_resp
+
+        obj = Object(
+            id="https://blog.example.com/post/1",
+            type="Article",
+            content="<p>Test</p>",
+            attributed_to="https://blog.example.com/ap/actor",
+        )
+
+        activity = outbox_processor.build_create_activity(obj)
+        outbox_processor.publish(activity)
+
+        mock_sign_request.assert_called_once()
+        kwargs = mock_sign_request.call_args.kwargs
+        assert "signed_headers" in kwargs
+        assert "content-type" in [h.lower() for h in kwargs["signed_headers"]]
+        assert "content-length" in [h.lower() for h in kwargs["signed_headers"]]
+        assert kwargs["headers"]["Content-Type"] == "application/activity+json"
+        assert "Content-Length" in kwargs["headers"]
+
     @patch("pubby.handlers._outbox.requests")
     def test_publish_delivers_to_followers(
         self, mock_requests, outbox_processor, mock_storage

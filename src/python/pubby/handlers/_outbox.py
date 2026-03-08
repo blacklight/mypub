@@ -250,6 +250,8 @@ class OutboxProcessor:
         :return: True if the server accepted the delivery (2xx).
         """
         body = json.dumps(activity).encode("utf-8")
+        content_type = "application/activity+json"
+        content_length = str(len(body))
 
         signed_headers = sign_request(
             private_key=self.private_key,  # type: ignore
@@ -257,7 +259,18 @@ class OutboxProcessor:
             method="POST",
             url=inbox_url,
             body=body,
-            headers={"Content-Type": "application/activity+json"},
+            headers={
+                "Content-Type": content_type,
+                "Content-Length": content_length,
+            },
+            signed_headers=[
+                "(request-target)",
+                "host",
+                "date",
+                "digest",
+                "content-type",
+                "content-length",
+            ],
         )
 
         resp = requests.post(
@@ -265,7 +278,8 @@ class OutboxProcessor:
             data=body,
             headers={
                 **signed_headers,
-                "Content-Type": "application/activity+json",
+                "Content-Type": content_type,
+                "Content-Length": content_length,
                 "User-Agent": self.user_agent,
             },
             timeout=self.http_timeout,
