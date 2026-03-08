@@ -2,6 +2,23 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Profile metadata fields** — `ActorConfig` now supports `attachment`
+  list for `PropertyValue` profile metadata (verified links, custom
+  fields) displayed on Mastodon and other Fediverse platforms.
+- **Actor URL override** — optional `url` field in `ActorConfig` for
+  custom human-readable profile URLs, separate from the ActivityPub
+  actor `id`. Useful for Mastodon profile-link verification.
+- **Actor profile updates** — `publish_actor_update()` method to broadcast
+  actor profile changes (name, summary, icon, fields) to all followers
+  via `Update` activity, following the standard Mastodon profile-edit
+  mechanism.
+- Schema.org context mappings for `PropertyValue` and `value` fields
+  in `AP_CONTEXT`.
+
 ## 0.1.6
 
 ### Added
