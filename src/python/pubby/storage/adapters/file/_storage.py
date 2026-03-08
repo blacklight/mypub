@@ -168,6 +168,34 @@ class FileActivityPubStorage(ActivityPubStorage):
             data["updated_at"] = datetime.now(timezone.utc).isoformat()
             self._write_json(path, data)
 
+    def delete_interaction_by_object_id(
+        self,
+        source_actor_id: str,
+        object_id: str,
+    ) -> bool:
+        interactions_dir = self.data_dir / "interactions"
+        if not interactions_dir.exists():
+            return False
+
+        found = False
+        for target_dir in interactions_dir.iterdir():
+            if not target_dir.is_dir():
+                continue
+            for fpath in self._list_json_files(target_dir):
+                data = self._read_json(fpath)
+                if data is None:
+                    continue
+                if (
+                    data.get("source_actor_id") == source_actor_id
+                    and data.get("object_id") == object_id
+                    and data.get("status") != InteractionStatus.DELETED.value
+                ):
+                    data["status"] = InteractionStatus.DELETED.value
+                    data["updated_at"] = datetime.now(timezone.utc).isoformat()
+                    self._write_json(fpath, data)
+                    found = True
+        return found
+
     def get_interactions(
         self,
         target_resource: str,

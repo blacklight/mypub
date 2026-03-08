@@ -424,7 +424,7 @@ class InboxProcessor:
         logger.info("Stored boost from %s on %s", activity.actor, target)
         return None
 
-    def _handle_delete(self, activity: Activity, raw: dict) -> dict | None:
+    def _handle_delete(self, activity: Activity, _: dict) -> dict | None:
         """Handle an incoming Delete activity."""
         obj = activity.object
         if isinstance(obj, dict):
@@ -434,15 +434,19 @@ class InboxProcessor:
         else:
             return None
 
-        # Try deleting interactions where object_id matches
-        # We don't know the exact interaction type, so try all
-        for itype in InteractionType:
-            self.storage.delete_interaction(activity.actor, target, itype)
+        # Try to delete by object_id first (the common case: we know the
+        # deleted object's URL but not which article it targeted).
+        found = self.storage.delete_interaction_by_object_id(activity.actor, target)
+
+        if not found:
+            # Fallback: try interpreting target as a target_resource
+            for itype in InteractionType:
+                self.storage.delete_interaction(activity.actor, target, itype)
 
         logger.info("Processed Delete from %s for %s", activity.actor, target)
         return None
 
-    def _handle_update(self, activity: Activity, raw: dict) -> dict | None:
+    def _handle_update(self, activity: Activity, _: dict) -> dict | None:
         """Handle an incoming Update activity."""
         obj_data = activity.object
         if not isinstance(obj_data, dict):

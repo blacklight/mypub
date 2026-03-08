@@ -166,6 +166,34 @@ class DbActivityPubStorage(ActivityPubStorage):
         finally:
             session.close()
 
+    def delete_interaction_by_object_id(
+        self,
+        source_actor_id: str,
+        object_id: str,
+    ) -> bool:
+        session = self.session_factory()
+        try:
+            rows = (
+                session.query(self.interaction_model)
+                .filter(
+                    sa.and_(
+                        self.interaction_model.source_actor_id == source_actor_id,
+                        self.interaction_model.object_id == object_id,
+                        self.interaction_model.status != InteractionStatus.DELETED,
+                    )
+                )
+                .all()
+            )
+            if not rows:
+                return False
+            for row in rows:
+                row.status = InteractionStatus.DELETED
+                row.updated_at = datetime.now(timezone.utc)
+            session.commit()
+            return True
+        finally:
+            session.close()
+
     def get_interactions(
         self,
         target_resource: str,

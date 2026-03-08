@@ -224,20 +224,45 @@ class TestHandleAnnounce:
 
 
 class TestHandleDelete:
-    def test_delete_removes_interactions(self, inbox_processor, mock_storage):
+    def test_delete_removes_interactions_by_object_id(
+        self, inbox_processor, mock_storage
+    ):
         actor_id = "https://remote.example.com/users/alice"
+        object_id = f"{actor_id}/notes/1"
         activity = {
             "id": f"{actor_id}/activities/delete-1",
             "type": "Delete",
             "actor": actor_id,
             "object": {
-                "id": f"{actor_id}/notes/1",
+                "id": object_id,
                 "type": "Tombstone",
             },
         }
 
+        # When object_id lookup succeeds, don't fall back to brute-force
+        mock_storage.delete_interaction_by_object_id.return_value = True
         inbox_processor.process(activity, skip_verification=True)
-        # Should attempt to delete all interaction types
+        mock_storage.delete_interaction_by_object_id.assert_called_once_with(
+            actor_id, object_id
+        )
+        mock_storage.delete_interaction.assert_not_called()
+
+    def test_delete_falls_back_to_brute_force(self, inbox_processor, mock_storage):
+        actor_id = "https://remote.example.com/users/alice"
+        object_id = f"{actor_id}/notes/1"
+        activity = {
+            "id": f"{actor_id}/activities/delete-1",
+            "type": "Delete",
+            "actor": actor_id,
+            "object": {
+                "id": object_id,
+                "type": "Tombstone",
+            },
+        }
+
+        # When object_id lookup fails, fall back to trying all types
+        mock_storage.delete_interaction_by_object_id.return_value = False
+        inbox_processor.process(activity, skip_verification=True)
         assert mock_storage.delete_interaction.call_count == len(InteractionType)
 
 

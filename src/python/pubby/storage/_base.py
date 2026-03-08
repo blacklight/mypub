@@ -66,6 +66,21 @@ class ActivityPubStorage(ABC):
         :param interaction_type: The type of interaction.
         """
 
+    def delete_interaction_by_object_id(
+        self,
+        source_actor_id: str,
+        object_id: str,
+    ) -> bool:
+        """
+        Delete an interaction by its ``object_id`` (the remote object URL).
+
+        Searches all stored interactions from *source_actor_id* and marks
+        matching ones as deleted. Returns ``True`` if at least one was found.
+
+        Subclasses may override for a more efficient implementation.
+        """
+        return False
+
     @abstractmethod
     def get_interactions(
         self,
