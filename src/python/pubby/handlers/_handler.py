@@ -311,8 +311,15 @@ class ActivityPubHandler:
         """
         expected = f"acct:{self.username}@{self.webfinger_domain}"
 
-        if resource is not None and resource != expected:
-            return None
+        if resource is not None:
+            # Some clients incorrectly include a leading '@' in the acct user
+            # part (e.g. 'acct:@user@example.com'). Accept both forms.
+            normalized = resource
+            if normalized.lower().startswith("acct:@"):
+                normalized = "acct:" + normalized[6:]
+
+            if normalized.lower() != expected.lower():
+                return None
 
         return build_webfinger_response(
             username=self.username,

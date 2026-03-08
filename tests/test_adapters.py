@@ -16,6 +16,14 @@ class TestWebFinger:
         assert data["subject"] == "acct:blog@blog.example.com"
         assert "jrd+json" in ct
 
+    def test_accepts_leading_at_in_acct_resource(self, adapter_client):
+        status, data, ct = adapter_client.get(
+            "/.well-known/webfinger?resource=acct:@blog@blog.example.com"
+        )
+        assert status == 200
+        assert data["subject"] == "acct:blog@blog.example.com"
+        assert "jrd+json" in ct
+
     def test_missing_resource(self, adapter_client):
         status, _, __ = adapter_client.get("/.well-known/webfinger")
         assert status == 400
