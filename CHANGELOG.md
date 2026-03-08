@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [Unreleased]
+
+### Added
+
+- Default HTTP `User-Agent` header set to `pubby/{version} (+{actor_id})`
+  for all outgoing requests when no custom user-agent is configured.
+
+### Fixed
+
+- Incoming `Delete` activities now correctly remove interactions. Previously
+  the handler passed the deleted object's URL as `target_resource`, which
+  never matched the storage key (keyed by article URL). Added
+  `delete_interaction_by_object_id()` to file and DB storage adapters,
+  which looks up interactions by their `object_id` field. The inbox handler
+  tries this first and falls back to the brute-force approach.
+
 ## [0.1.4]
 
 ### Added
