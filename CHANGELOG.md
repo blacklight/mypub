@@ -2,6 +2,27 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- `QUOTE` member on `InteractionType` enum — incoming quotes (via
+  `quote`, `quoteUrl`, or `_misskey_quote` fields on `Create`
+  activities) are now stored as `InteractionType.QUOTE`.
+- `QUOTE_REQUEST` member on `ActivityType` enum.
+- **QuoteAuthorization** ([FEP-044f](https://codeberg.org/fediverse/fep/src/branch/main/fep/044f/fep-044f.md))
+  — incoming `QuoteRequest` activities are answered with an `Accept`
+  whose `result` points to a dereferenceable `QuoteAuthorization`
+  object, so Mastodon (and other servers) clear the "pending" state.
+- `GET <prefix>/quote_authorizations/<id>` endpoint in all three
+  server adapters (Flask, FastAPI, Tornado) to serve stored
+  `QuoteAuthorization` objects.
+- `store_quote_authorization` / `get_quote_authorization` on
+  `ActivityPubStorage` (with implementations in file and DB adapters).
+- `auto_approve_quotes` parameter on `ActivityPubHandler` and
+  `InboxProcessor` (default `True`). Set to `False` to ignore
+  incoming `QuoteRequest` activities.
+
 ## [0.1.5]
 
 ### Added

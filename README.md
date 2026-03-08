@@ -301,6 +301,7 @@ thread-safe access via `RLock` per resource.
 | `http_timeout` | `float` | `15.0` | HTTP request timeout (seconds) |
 | `max_retries` | `int` | `3` | Delivery retry attempts |
 | `max_delivery_workers` | `int` | `10` | Concurrent delivery threads |
+| `auto_approve_quotes` | `bool` | `True` | Auto-send `QuoteAuthorization` for incoming quotes |
 | `software_name` | `str` | `"pubby"` | NodeInfo software name |
 | `software_version` | `str` | `"0.0.1"` | NodeInfo software version |
 
@@ -430,12 +431,73 @@ obj = Object(
     attributed_to="https://example.com/ap/actor",
     media_type="text/html",  # optional, serialized as "mediaType" in JSON-LD
     quote_control={"quotePolicy": "public"},  # optional, serialized as "quoteControl"
+    quote_policy="public",  # optional, serialized as "quotePolicy"
+    interaction_policy={
+        "canQuote": {
+            "automaticApproval": ["https://www.w3.org/ns/activitystreams#Public"],
+            "manualApproval": [],
+        },
+    },  # optional, serialized as "interactionPolicy"
 )
 ```
 
 Key fields: `id`, `type`, `name`, `content`, `url`, `attributed_to`,
 `published`, `updated`, `summary`, `to`, `cc`, `tag`, `media_type`,
-`quote_control`.
+`quote_control`, `quote_policy`, `interaction_policy`.
+
+#### Quote policies (Mastodon)
+
+Mastodon reads quote permissions from the ActivityPub object's
+`interactionPolicy.canQuote` field. To allow public quoting without
+approval, set `automaticApproval` to the public collection and leave
+`manualApproval` empty:
+
+```python
+obj = Object(
+    ...,
+    interaction_policy={
+        "canQuote": {
+            "automaticApproval": ["https://www.w3.org/ns/activitystreams#Public"],
+            "manualApproval": [],
+        }
+    },
+)
+```
+
+If you include a non-empty `manualApproval`, Mastodon will create a
+pending quote request instead of immediately allowing it.
+
+#### QuoteAuthorization (FEP-044f)
+
+Advertising `interactionPolicy.canQuote` is **advisory only**. Mastodon
+and other servers won't clear the "pending" state on a remote quote
+until they can verify a `QuoteAuthorization` stamp from the quoted
+post's author.
+
+The approval flow defined by [FEP-044f](https://codeberg.org/fediverse/fep/src/branch/main/fep/044f/fep-044f.md) works as follows:
+
+1. The remote server sends a `QuoteRequest` activity to your inbox.
+2. Pubby responds with an `Accept` activity whose `result` points to a
+   dereferenceable `QuoteAuthorization` URL.
+3. The remote server fetches the `QuoteAuthorization` at that URL and
+   clears the pending state.
+
+Pubby handles this automatically. The `QuoteAuthorization` objects are
+stored and served at `<prefix>/quote_authorizations/<id>`.
+
+Additionally, incoming `Create` activities that contain a `quote`,
+`quoteUrl`, or `_misskey_quote` field are stored as
+`InteractionType.QUOTE` interactions.
+
+This behaviour is controlled by the `auto_approve_quotes` parameter
+(default `True`). Set it to `False` to ignore `QuoteRequest` activities:
+
+```python
+handler = ActivityPubHandler(
+    ...,
+    auto_approve_quotes=False,
+)
+```
 
 #### `Mention`
 

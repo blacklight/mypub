@@ -150,6 +150,19 @@ class FollowingHandler(BaseActivityPubHandler):
         self.write_json(doc, ACTIVITY_JSON)
 
 
+class QuoteAuthorizationHandler(BaseActivityPubHandler):
+    """Handle GET requests for QuoteAuthorization objects."""
+
+    def get(self, auth_id):
+        full_id = f"{self.ap_handler.actor_id}/quote_authorizations/{auth_id}"
+        doc = self.ap_handler.get_quote_authorization(full_id)
+        if doc is None:
+            self.set_status(404)
+            self.write_json({"error": "not found"})
+            return
+        self.write_json(doc, ACTIVITY_JSON)
+
+
 def bind_activitypub(
     app: tornado.web.Application,
     handler: ActivityPubHandler,
@@ -197,6 +210,11 @@ def bind_activitypub(
         (rf"{prefix}/outbox", OutboxHandler, init_kwargs),
         (rf"{prefix}/followers", FollowersHandler, init_kwargs),
         (rf"{prefix}/following", FollowingHandler, init_kwargs),
+        (
+            rf"{prefix}/quote_authorizations/(.*)",
+            QuoteAuthorizationHandler,
+            init_kwargs,
+        ),
     ]
 
     # Add handlers to the application

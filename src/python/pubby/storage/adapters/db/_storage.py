@@ -343,3 +343,26 @@ class DbActivityPubStorage(ActivityPubStorage):
             return dict(row.actor_data)
         finally:
             session.close()
+
+    # ---------- Quote authorizations ----------
+
+    def store_quote_authorization(
+        self,
+        authorization_id: str,
+        authorization_data: dict,
+    ):
+        self.store_activity(authorization_id, authorization_data)
+
+    def get_quote_authorization(self, authorization_id: str) -> dict | None:
+        session = self.session_factory()
+        try:
+            row = (
+                session.query(self.activity_model)
+                .filter(self.activity_model.activity_id == authorization_id)
+                .one_or_none()
+            )
+            if row is None:
+                return None
+            return dict(row.activity_data)
+        finally:
+            session.close()

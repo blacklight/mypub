@@ -288,3 +288,24 @@ class FileActivityPubStorage(ActivityPubStorage):
                 return None
 
         return data.get("actor_data")
+
+    # ---------- Quote authorizations ----------
+
+    def _quote_auth_path(self, authorization_id: str) -> Path:
+        return (
+            self.data_dir
+            / "quote_authorizations"
+            / f"{_sanitize(authorization_id)}.json"
+        )
+
+    def store_quote_authorization(
+        self,
+        authorization_id: str,
+        authorization_data: dict,
+    ):
+        path = self._quote_auth_path(authorization_id)
+        self._write_json(path, authorization_data)
+
+    def get_quote_authorization(self, authorization_id: str) -> dict | None:
+        path = self._quote_auth_path(authorization_id)
+        return self._read_json(path)

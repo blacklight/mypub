@@ -153,3 +153,26 @@ class ActivityPubStorage(ABC):
             entry is considered stale (default 24h).
         :return: The actor's JSON-LD document, or None if not cached or stale.
         """
+
+    # ---------- Quote authorizations ----------
+
+    def store_quote_authorization(
+        self,
+        authorization_id: str,
+        authorization_data: dict,
+    ) -> Any:
+        """
+        Store a QuoteAuthorization object so it can be served via HTTP GET.
+
+        :param authorization_id: The full URL / ID of the authorization.
+        :param authorization_data: The JSON-LD document.
+        """
+
+    def get_quote_authorization(self, authorization_id: str) -> dict | None:
+        """
+        Retrieve a stored QuoteAuthorization by its ID.
+
+        :param authorization_id: The full URL / ID of the authorization.
+        :return: The JSON-LD document, or None if not found.
+        """
+        return None

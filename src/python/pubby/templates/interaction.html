@@ -32,6 +32,11 @@
       <span class="ap-interaction-label">⭐ liked this</span>
     {% elif interaction.interaction_type.value == "boost" %}
       <span class="ap-interaction-label">🔁 boosted this</span>
+    {% elif interaction.interaction_type.value == "quote" %}
+      <span class="ap-interaction-label">🗣️ quoted this</span>
+      {% if interaction.content %}
+        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
+      {% endif %}
     {% else %}
       <span class="ap-interaction-label">mentioned this</span>
     {% endif %}
@@ -45,7 +50,7 @@
         </time>
       </span>
     {% endif %}
-    {% if safe_object_url and interaction.interaction_type.value in ("reply", "mention") %}
+    {% if safe_object_url and interaction.interaction_type.value in ("reply", "mention", "quote") %}
       <a class="ap-interaction-source-link" href="{{ safe_object_url }}" target="_blank">original post ↗</a>
     {% endif %}
   </div>

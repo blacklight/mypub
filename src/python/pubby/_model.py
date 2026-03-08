@@ -19,6 +19,7 @@ class ActivityType(str, Enum):
     REJECT = "Reject"
     LIKE = "Like"
     ANNOUNCE = "Announce"
+    QUOTE_REQUEST = "QuoteRequest"
 
     @classmethod
     def from_raw(cls, raw: str) -> "ActivityType":
@@ -57,6 +58,7 @@ class InteractionType(str, Enum):
     LIKE = "like"
     BOOST = "boost"
     MENTION = "mention"
+    QUOTE = "quote"
 
     @classmethod
     def from_activity_type(cls, activity_type: str) -> "InteractionType":
@@ -143,6 +145,13 @@ AP_CONTEXT = [
     "https://www.w3.org/ns/activitystreams",
     "https://w3id.org/security/v1",
     "https://w3id.org/fep/0449",
+    {
+        "gts": "https://gotosocial.org/ns#",
+        "interactionPolicy": {"@id": "gts:interactionPolicy", "@type": "@id"},
+        "canQuote": {"@id": "gts:canQuote", "@type": "@id"},
+        "automaticApproval": {"@id": "gts:automaticApproval", "@type": "@id"},
+        "manualApproval": {"@id": "gts:manualApproval", "@type": "@id"},
+    },
 ]
 
 
@@ -301,6 +310,8 @@ class Object:
     media_type: str | None = None
     language: str | None = None
     quote_control: dict | None = None
+    quote_policy: str | None = None
+    interaction_policy: dict | None = None
 
     def to_dict(self) -> dict:
         """Return the ActivityPub JSON-LD representation."""
@@ -340,6 +351,10 @@ class Object:
             doc["mediaType"] = self.media_type
         if self.quote_control is not None:
             doc["quoteControl"] = self.quote_control
+        if self.quote_policy is not None:
+            doc["quotePolicy"] = self.quote_policy
+        if self.interaction_policy is not None:
+            doc["interactionPolicy"] = self.interaction_policy
 
         return doc
 
@@ -376,6 +391,8 @@ class Object:
             media_type=data.get("mediaType"),
             language=_parse_language(data),
             quote_control=data.get("quoteControl"),
+            quote_policy=data.get("quotePolicy"),
+            interaction_policy=data.get("interactionPolicy"),
         )
 
 

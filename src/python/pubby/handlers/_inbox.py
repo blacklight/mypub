@@ -3,6 +3,7 @@ Inbox processing — dispatch incoming activities by type.
 """
 
 import logging
+import uuid
 from datetime import datetime, timezone
 from typing import Callable
 
@@ -54,6 +55,7 @@ class InboxProcessor:
         on_interaction_received: Callable[[Interaction], None] | None = None,
         user_agent: str | None = None,
         http_timeout: float = 15.0,
+        auto_approve_quotes: bool = True,
     ):
         self.storage = storage
         self.actor_id = actor_id
@@ -62,6 +64,7 @@ class InboxProcessor:
         self.on_interaction_received = on_interaction_received
         self.http_timeout = http_timeout
         self.user_agent = user_agent or get_default_user_agent(actor_id)
+        self.auto_approve_quotes = auto_approve_quotes
 
     def _fetch_actor(self, actor_id: str) -> dict | None:
         """Fetch a remote actor document, using cache if available."""
@@ -185,6 +188,7 @@ class InboxProcessor:
             ActivityType.ANNOUNCE: self._handle_announce,
             ActivityType.DELETE: self._handle_delete,
             ActivityType.UPDATE: self._handle_update,
+            ActivityType.QUOTE_REQUEST: self._handle_quote_request,
         }
 
         handler = handler_map.get(activity_type)
@@ -230,7 +234,7 @@ class InboxProcessor:
         self._deliver_to_inbox(inbox, accept_activity)
         return accept_activity
 
-    def _handle_undo(self, activity: Activity, raw: dict) -> dict | None:
+    def _handle_undo(self, activity: Activity, _: dict) -> dict | None:
         """Handle an incoming Undo activity."""
         inner = activity.object
         if isinstance(inner, dict):
@@ -244,7 +248,7 @@ class InboxProcessor:
             actor_id = activity.actor
             logger.info("Processing Undo Follow from %s", actor_id)
             self.storage.remove_follower(actor_id)
-        elif inner_type in ("Like", "Announce"):
+        elif inner_type in ("Like", "Announce") and isinstance(inner, dict):
             self._handle_undo_interaction(activity, inner)
         else:
             logger.info("Ignoring Undo of type: %s", inner_type)
@@ -278,19 +282,41 @@ class InboxProcessor:
                 "Removed %s from %s on %s", interaction_type.value, actor_id, target
             )
 
-    def _handle_create(self, activity: Activity, raw: dict) -> dict | None:
-        """Handle an incoming Create activity (reply/comment)."""
+    @staticmethod
+    def _extract_quote_target(obj_data: dict) -> str | None:
+        """Extract the quoted object URL from a Create object, if present.
+
+        Checks the FEP-0449 ``quote`` field, Mastodon's ``quoteUrl``, and
+        Misskey's ``_misskey_quote``.
+        """
+        for key in ("quote", "quoteUrl", "_misskey_quote"):
+            value = obj_data.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return None
+
+    def _handle_create(self, activity: Activity, _: dict) -> dict | None:
+        """Handle an incoming Create activity (reply/comment or quote)."""
         obj_data = activity.object
         if not isinstance(obj_data, dict):
             return None
 
         obj = Object.build(obj_data)
+        quote_target = self._extract_quote_target(obj_data)
         target = obj.in_reply_to
-        if not target:
-            logger.info("Create without inReplyTo — ignoring")
+
+        if not target and not quote_target:
+            logger.info("Create without inReplyTo or quote — ignoring")
             return None
 
-        # Only process if the target is our resource
+        # Determine interaction type: quote takes precedence
+        if quote_target:
+            interaction_type = InteractionType.QUOTE
+            effective_target = quote_target
+        else:
+            interaction_type = InteractionType.REPLY
+            effective_target = target  # type: ignore[assignment]
+
         actor_data = self._fetch_actor(activity.actor)
         author_name = ""
         author_url = ""
@@ -308,8 +334,8 @@ class InboxProcessor:
 
         interaction = Interaction(
             source_actor_id=activity.actor,
-            target_resource=target,
-            interaction_type=InteractionType.REPLY,
+            target_resource=effective_target or "",
+            interaction_type=interaction_type,
             activity_id=activity.id,
             object_id=obj.id,
             content=obj.content,
@@ -327,10 +353,16 @@ class InboxProcessor:
         if self.on_interaction_received:
             self.on_interaction_received(interaction)
 
-        logger.info("Stored reply from %s on %s", activity.actor, target)
+        logger.info(
+            "Stored %s from %s on %s",
+            interaction_type.value,
+            activity.actor,
+            effective_target,
+        )
+
         return None
 
-    def _handle_like(self, activity: Activity, raw: dict) -> dict | None:
+    def _handle_like(self, activity: Activity, _: dict) -> dict | None:
         """Handle an incoming Like activity."""
         obj = activity.object
         target = (
@@ -378,7 +410,7 @@ class InboxProcessor:
         logger.info("Stored like from %s on %s", activity.actor, target)
         return None
 
-    def _handle_announce(self, activity: Activity, raw: dict) -> dict | None:
+    def _handle_announce(self, activity: Activity, _: dict) -> dict | None:
         """Handle an incoming Announce (boost) activity."""
         obj = activity.object
         target = (
@@ -495,6 +527,106 @@ class InboxProcessor:
         self.storage.store_interaction(interaction)
         logger.info("Updated reply from %s on %s", activity.actor, target)
         return None
+
+    def _handle_quote_request(self, activity: Activity, raw: dict) -> dict | None:
+        """Handle an incoming QuoteRequest activity (FEP-044f).
+
+        If ``auto_approve_quotes`` is enabled, builds a
+        ``QuoteAuthorization`` object, stores it so it can be served via
+        HTTP GET, and sends an ``Accept`` activity (with the authorization
+        URL as ``result``) back to the quoting actor's inbox.
+        """
+        if not self.auto_approve_quotes:
+            logger.info(
+                "QuoteRequest from %s ignored (auto_approve disabled)", activity.actor
+            )
+            return None
+
+        # Per FEP-044f: object = the quoted post, instrument = the quoting post
+        quoted_object = activity.object
+        quoted_uri = (
+            quoted_object
+            if isinstance(quoted_object, str)
+            else quoted_object.get("id", "") if isinstance(quoted_object, dict) else ""
+        )
+        instrument = raw.get("instrument")
+        quoting_uri = (
+            instrument
+            if isinstance(instrument, str)
+            else instrument.get("id", "") if isinstance(instrument, dict) else ""
+        )
+
+        if not quoted_uri or not quoting_uri:
+            logger.info("QuoteRequest missing object or instrument — ignoring")
+            return None
+
+        actor_data = self._fetch_actor(activity.actor)
+        if not actor_data:
+            logger.warning("Cannot fetch actor for QuoteRequest: %s", activity.actor)
+            return None
+
+        actor = Actor.build(actor_data)
+        inbox_url = actor.inbox
+        if not inbox_url:
+            logger.warning("Cannot send Accept: no inbox for %s", activity.actor)
+            return None
+
+        # Build a dereferenceable QuoteAuthorization
+        auth_id = f"{self.actor_id}/quote_authorizations/{uuid.uuid4()}"
+
+        qa_context = [
+            "https://www.w3.org/ns/activitystreams",
+            {
+                "QuoteAuthorization": "https://w3id.org/fep/044f#QuoteAuthorization",
+                "gts": "https://gotosocial.org/ns#",
+                "interactingObject": {
+                    "@id": "gts:interactingObject",
+                    "@type": "@id",
+                },
+                "interactionTarget": {
+                    "@id": "gts:interactionTarget",
+                    "@type": "@id",
+                },
+            },
+        ]
+
+        authorization = {
+            "@context": qa_context,
+            "type": "QuoteAuthorization",
+            "id": auth_id,
+            "attributedTo": self.actor_id,
+            "interactionTarget": quoted_uri,
+            "interactingObject": quoting_uri,
+        }
+
+        # Store so it can be served via HTTP GET
+        self.storage.store_quote_authorization(auth_id, authorization)
+
+        # Wrap in an Accept and deliver to the quoting actor
+        accept_context = [
+            "https://www.w3.org/ns/activitystreams",
+            {"QuoteRequest": "https://w3id.org/fep/044f#QuoteRequest"},
+        ]
+
+        accept_activity = {
+            "@context": accept_context,
+            "type": "Accept",
+            "id": f"{self.actor_id}/activities/{uuid.uuid4()}",
+            "actor": self.actor_id,
+            "to": activity.actor,
+            "object": raw,
+            "result": auth_id,
+        }
+
+        logger.info(
+            "Accepting QuoteRequest %s with authorization %s → %s",
+            activity.id,
+            auth_id,
+            inbox_url,
+        )
+
+        self._deliver_to_inbox(inbox_url, accept_activity)
+        return accept_activity
 
     def _deliver_to_inbox(self, inbox_url: str, activity: dict) -> bool:
         """Deliver an activity to a remote inbox."""

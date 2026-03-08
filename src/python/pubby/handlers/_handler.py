@@ -49,6 +49,9 @@ class ActivityPubHandler:
     :param http_timeout: Timeout in seconds for outgoing HTTP requests.
     :param max_retries: Maximum delivery retry attempts.
     :param max_delivery_workers: Maximum threads for concurrent delivery fan-out.
+    :param auto_approve_quotes: If ``True`` (default), automatically send a
+        ``QuoteAuthorization`` when an incoming quote targets a local object,
+        so the remote server clears its "pending" state.
     :param software_name: Software name for NodeInfo.
     :param software_version: Software version for NodeInfo.
     """
@@ -66,6 +69,7 @@ class ActivityPubHandler:
         http_timeout: float = 15.0,
         max_retries: int = 3,
         max_delivery_workers: int = 10,
+        auto_approve_quotes: bool = True,
         software_name: str = "pubby",
         software_version: str = "0.0.1",
     ):
@@ -126,6 +130,7 @@ class ActivityPubHandler:
             on_interaction_received=on_interaction_received,
             user_agent=user_agent,
             http_timeout=http_timeout,
+            auto_approve_quotes=auto_approve_quotes,
         )
 
         self.outbox = OutboxProcessor(
@@ -219,7 +224,7 @@ class ActivityPubHandler:
             id=self.actor_id,
             type=self.actor_type,
             preferred_username=self.username,
-            name=self.actor_name,
+            name=self.actor_name or "",
             summary=self.actor_summary,
             inbox=self.inbox_url,
             outbox=self.outbox_url,
@@ -307,6 +312,17 @@ class ActivityPubHandler:
             software_version=self.software_version,
             total_posts=len(activities),
         )
+
+    # ---------- Quote authorizations ----------
+
+    def get_quote_authorization(self, authorization_id: str) -> dict | None:
+        """
+        Retrieve a stored QuoteAuthorization by its full ID/URL.
+
+        :param authorization_id: The authorization's ID (URL).
+        :return: The JSON-LD document, or None if not found.
+        """
+        return self.storage.get_quote_authorization(authorization_id)
 
     # ---------- Rendering ----------
 

@@ -162,3 +162,14 @@ def bind_activitypub(
         response = jsonify(doc)
         response.headers["Content-Type"] = ACTIVITY_JSON
         return response
+
+    # -- Quote authorizations --
+    @app.route(f"{prefix}/quote_authorizations/<path:auth_id>", methods=["GET"])
+    def _quote_authorization(auth_id):
+        full_id = f"{handler.actor_id}/quote_authorizations/{auth_id}"
+        doc = handler.get_quote_authorization(full_id)
+        if doc is None:
+            return jsonify({"error": "not found"}), 404
+        response = jsonify(doc)
+        response.headers["Content-Type"] = ACTIVITY_JSON
+        return response
