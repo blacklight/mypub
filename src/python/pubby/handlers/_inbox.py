@@ -295,8 +295,31 @@ class InboxProcessor:
                 return value
         return None
 
+    def _is_mention_of_actor(self, activity: Activity, obj_data: dict) -> bool:
+        """Check if this Create activity is a direct mention of our actor."""
+        # Check if actor is in to/cc fields
+        to_list = activity.to or []
+        cc_list = activity.cc or []
+        all_recipients = to_list + cc_list
+
+        if self.actor_id in all_recipients:
+            return True
+
+        # Check tag field for Mention objects targeting our actor
+        tags = obj_data.get("tag", [])
+        if isinstance(tags, list):
+            for tag in tags:
+                if isinstance(tag, dict):
+                    if (
+                        tag.get("type") == "Mention"
+                        and tag.get("href") == self.actor_id
+                    ):
+                        return True
+
+        return False
+
     def _handle_create(self, activity: Activity, _: dict) -> dict | None:
-        """Handle an incoming Create activity (reply/comment or quote)."""
+        """Handle an incoming Create activity (reply/comment, quote, or mention)."""
         obj_data = activity.object
         if not isinstance(obj_data, dict):
             return None
@@ -305,17 +328,20 @@ class InboxProcessor:
         quote_target = self._extract_quote_target(obj_data)
         target = obj.in_reply_to
 
-        if not target and not quote_target:
-            logger.info("Create without inReplyTo or quote — ignoring")
-            return None
-
-        # Determine interaction type: quote takes precedence
+        # Determine interaction type: quote > reply > mention
         if quote_target:
             interaction_type = InteractionType.QUOTE
             effective_target = quote_target
-        else:
+        elif target:
             interaction_type = InteractionType.REPLY
-            effective_target = target  # type: ignore[assignment]
+            effective_target = target
+        elif self._is_mention_of_actor(activity, obj_data):
+            # Direct mention to the actor (guestbook entry)
+            interaction_type = InteractionType.MENTION
+            effective_target = self.actor_id
+        else:
+            logger.info("Create without inReplyTo, quote, or mention — ignoring")
+            return None
 
         actor_data = self._fetch_actor(activity.actor)
         author_name = ""
