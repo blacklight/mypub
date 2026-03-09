@@ -68,7 +68,7 @@ class FileActivityPubStorage(ActivityPubStorage):
                 self._locks[path] = threading.RLock()
             return self._locks[path]
 
-    def _write_json(self, path: Path, data: Any) -> None:
+    def write_json(self, path: Path, data: Any) -> None:
         """Write data as JSON to a file, creating directories as needed."""
         lock = self._get_lock(str(path))
         with lock:
@@ -84,7 +84,7 @@ class FileActivityPubStorage(ActivityPubStorage):
                     tmp.unlink()
                 raise
 
-    def _read_json(self, path: Path) -> Any:
+    def read_json(self, path: Path) -> Any:
         """Read JSON data from a file."""
         lock = self._get_lock(str(path))
         with lock:
@@ -101,7 +101,7 @@ class FileActivityPubStorage(ActivityPubStorage):
                 return True
             return False
 
-    def _list_json_files(self, directory: Path) -> list[Path]:
+    def list_json_files(self, directory: Path) -> list[Path]:
         """List all .json files in a directory."""
         if not directory.exists():
             return []
@@ -114,7 +114,7 @@ class FileActivityPubStorage(ActivityPubStorage):
 
     def store_follower(self, follower: Follower):
         path = self._follower_path(follower.actor_id)
-        self._write_json(path, follower.to_dict())
+        self.write_json(path, follower.to_dict())
 
     def remove_follower(self, actor_id: str):
         path = self._follower_path(actor_id)
@@ -123,8 +123,8 @@ class FileActivityPubStorage(ActivityPubStorage):
     def get_followers(self) -> list[Follower]:
         followers_dir = self.data_dir / "followers"
         result = []
-        for fpath in self._list_json_files(followers_dir):
-            data = self._read_json(fpath)
+        for fpath in self.list_json_files(followers_dir):
+            data = self.read_json(fpath)
             if data is not None:
                 result.append(Follower.build(data))
         return result
@@ -150,7 +150,7 @@ class FileActivityPubStorage(ActivityPubStorage):
             interaction.target_resource,
             interaction.interaction_type,
         )
-        self._write_json(path, interaction.to_dict())
+        self.write_json(path, interaction.to_dict())
 
     def delete_interaction(
         self,
@@ -162,11 +162,11 @@ class FileActivityPubStorage(ActivityPubStorage):
             source_actor_id, target_resource, interaction_type
         )
         # Mark as deleted rather than removing the file
-        data = self._read_json(path)
+        data = self.read_json(path)
         if data is not None:
             data["status"] = InteractionStatus.DELETED.value
             data["updated_at"] = datetime.now(timezone.utc).isoformat()
-            self._write_json(path, data)
+            self.write_json(path, data)
 
     def delete_interaction_by_object_id(
         self,
@@ -181,8 +181,8 @@ class FileActivityPubStorage(ActivityPubStorage):
         for target_dir in interactions_dir.iterdir():
             if not target_dir.is_dir():
                 continue
-            for fpath in self._list_json_files(target_dir):
-                data = self._read_json(fpath)
+            for fpath in self.list_json_files(target_dir):
+                data = self.read_json(fpath)
                 if data is None:
                     continue
                 if (
@@ -192,7 +192,7 @@ class FileActivityPubStorage(ActivityPubStorage):
                 ):
                     data["status"] = InteractionStatus.DELETED.value
                     data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                    self._write_json(fpath, data)
+                    self.write_json(fpath, data)
                     found = True
         return found
 
@@ -204,8 +204,8 @@ class FileActivityPubStorage(ActivityPubStorage):
     ) -> list[Interaction]:
         interaction_dir = self._interaction_dir(target_resource)
         result = []
-        for fpath in self._list_json_files(interaction_dir):
-            data = self._read_json(fpath)
+        for fpath in self.list_json_files(interaction_dir):
+            data = self.read_json(fpath)
             if data is None:
                 continue
             interaction = Interaction.build(data)
@@ -231,7 +231,7 @@ class FileActivityPubStorage(ActivityPubStorage):
             "activity_data": activity_data,
             "created_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._write_json(path, record)
+        self.write_json(path, record)
 
     def get_activities(
         self,
@@ -239,12 +239,12 @@ class FileActivityPubStorage(ActivityPubStorage):
         offset: int = 0,
     ) -> list[dict]:
         activities_dir = self.data_dir / "activities"
-        files = self._list_json_files(activities_dir)
+        files = self.list_json_files(activities_dir)
         # Sort by modification time, newest first
         files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
         result = []
         for fpath in files[offset : offset + limit]:
-            data = self._read_json(fpath)
+            data = self.read_json(fpath)
             if data is not None and "activity_data" in data:
                 result.append(data["activity_data"])
         return result
@@ -266,7 +266,7 @@ class FileActivityPubStorage(ActivityPubStorage):
             "actor_data": actor_data,
             "fetched_at": (fetched_at or datetime.now(timezone.utc)).isoformat(),
         }
-        self._write_json(path, record)
+        self.write_json(path, record)
 
     def get_cached_actor(
         self,
@@ -274,7 +274,7 @@ class FileActivityPubStorage(ActivityPubStorage):
         max_age_seconds: float = 86400.0,
     ) -> dict | None:
         path = self._actor_cache_path(actor_id)
-        data = self._read_json(path)
+        data = self.read_json(path)
         if data is None:
             return None
 
@@ -304,8 +304,8 @@ class FileActivityPubStorage(ActivityPubStorage):
         authorization_data: dict,
     ):
         path = self._quote_auth_path(authorization_id)
-        self._write_json(path, authorization_data)
+        self.write_json(path, authorization_data)
 
     def get_quote_authorization(self, authorization_id: str) -> dict | None:
         path = self._quote_auth_path(authorization_id)
-        return self._read_json(path)
+        return self.read_json(path)

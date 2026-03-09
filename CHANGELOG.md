@@ -2,6 +2,30 @@
 
 All notable changes to this project will be documented in this file.
 
+## _Unreleased_
+
+### Added
+
+- **Mastodon-compatible API layer** — read-only subset of the Mastodon REST
+  API backed by Pubby's handler and storage. New `bind_mastodon_api()` adapter
+  function for Flask, FastAPI, and Tornado:
+  - `GET /api/v1/instance` — instance metadata (v1)
+  - `GET /api/v2/instance` — instance metadata (v2)
+  - `GET /api/v1/instance/peers` — peer domains from followers
+  - `GET /api/v1/accounts/lookup` — resolve `acct:user@domain` to Account
+  - `GET /api/v1/accounts/:id` — account by ID
+  - `GET /api/v1/accounts/:id/statuses` — paginated statuses with cursor
+    pagination and filtering (`limit`, `max_id`, `since_id`, `only_media`,
+    `tagged`)
+  - `GET /api/v1/accounts/:id/followers` — paginated followers list
+  - `GET /api/v1/statuses/:id` — single status lookup
+- **NodeInfo aliases** — `GET /nodeinfo/2.0`, `/nodeinfo/2.0.json`, and
+  `/nodeinfo/2.1.json` registered by the Mastodon API adapter for
+  compatibility with older clients.
+- `pubby.server.mastodon` subpackage with framework-agnostic mappers
+  (`actor_to_account`, `activity_to_status`, `follower_to_account`,
+  `tag_to_mastodon_tag`) and route logic (`MastodonAPI`).
+
 ## _0.1.9_
 
 ### Fixed

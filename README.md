@@ -167,6 +167,71 @@ All adapters register the same endpoints:
 
 The `/ap` prefix is configurable via the `prefix` parameter on `bind_activitypub`.
 
+### Mastodon-compatible API
+
+Pubby ships a read-only subset of the
+[Mastodon REST API](https://docs.joinmastodon.org/methods/) so that
+Mastodon-compatible clients and crawlers can discover the instance, look up the
+actor, list published statuses, and inspect followers.
+
+Call `bind_mastodon_api` alongside `bind_activitypub`:
+
+```python
+from pubby.server.adapters.flask import bind_activitypub
+from pubby.server.adapters.flask_mastodon import bind_mastodon_api
+
+bind_activitypub(app, handler)
+bind_mastodon_api(
+    app,
+    handler,
+    title="My Blog",               # instance title (default: actor name)
+    description="A cool blog",      # instance description (default: actor summary)
+    contact_email="me@example.com", # optional contact e-mail
+    software_name="MyApp",          # shown in /api/v1/instance version string
+    software_version="1.0.0",
+)
+```
+
+The same function is available for all three frameworks:
+
+- `pubby.server.adapters.flask_mastodon.bind_mastodon_api`
+- `pubby.server.adapters.fastapi_mastodon.bind_mastodon_api`
+- `pubby.server.adapters.tornado_mastodon.bind_mastodon_api`
+
+#### Mastodon API Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/v1/instance` | Instance metadata (v1) |
+| `GET` | `/api/v2/instance` | Instance metadata (v2) |
+| `GET` | `/api/v1/instance/peers` | Peer domains from followers |
+| `GET` | `/api/v1/accounts/lookup` | Resolve `acct:user@domain` → Account |
+| `GET` | `/api/v1/accounts/:id` | Account by ID (`"1"` = local actor) |
+| `GET` | `/api/v1/accounts/:id/statuses` | Paginated statuses for account |
+| `GET` | `/api/v1/accounts/:id/followers` | Paginated followers list |
+| `GET` | `/api/v1/statuses/:id` | Single status by ID |
+| `GET` | `/nodeinfo/2.0` | NodeInfo 2.0 alias |
+| `GET` | `/nodeinfo/2.0.json` | NodeInfo 2.0 `.json` alias |
+| `GET` | `/nodeinfo/2.1.json` | NodeInfo 2.1 `.json` alias |
+
+#### `bind_mastodon_api` Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `app` | framework app | *required* | Flask / FastAPI / Tornado application |
+| `handler` | `ActivityPubHandler` | *required* | The handler instance |
+| `title` | `str` | actor name | Instance title |
+| `description` | `str` | actor summary | Instance description |
+| `contact_email` | `str` | `""` | Contact e-mail |
+| `software_name` | `str` | handler's `software_name` | Software name in version string |
+| `software_version` | `str` | handler's `software_version` | Software version string |
+
+#### Status & Account IDs
+
+- The local actor always has account ID `"1"`.
+- Status IDs are URL-safe base64 encodings of the AP object URL, making them
+  deterministic and reversible.
+
 ## Publishing Content
 
 Publish an article to all followers:
