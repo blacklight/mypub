@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+- Always render the content of an interaction when available, even if
+  the type is unknown.
+- Minor style fix for FQN rendering in the interaction component.
+
 ## 0.2.1
 
 ### Changed
