@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.2
 
 ### Fixed
 - Always render the content of an interaction when available, even if
