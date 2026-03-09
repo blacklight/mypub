@@ -37,6 +37,12 @@
       {% if interaction.content %}
         <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
       {% endif %}
+    {% elif interaction.interaction_type.value == "mention" %}
+      {% if interaction.content %}
+        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
+      {% else %}
+        <span class="ap-interaction-label">mentioned this</span>
+      {% endif %}
     {% else %}
       <span class="ap-interaction-label">mentioned this</span>
     {% endif %}
