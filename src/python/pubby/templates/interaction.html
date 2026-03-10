@@ -26,7 +26,10 @@
   <div class="ap-interaction-body">
     {% if interaction.interaction_type.value == "reply" %}
       {% if interaction.content %}
-        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
+        <div class="ap-interaction-content{{ ' ap-interaction-collapsible' if interaction.content|length > 1000 }}">{{ sanitize_html(interaction.content) }}</div>
+        {% if interaction.content|length > 1000 %}
+          <label class="ap-interaction-expand"><input type="checkbox" class="ap-interaction-toggle"></label>
+        {% endif %}
       {% endif %}
     {% elif interaction.interaction_type.value == "like" %}
       <span class="ap-interaction-label">⭐ liked this</span>
@@ -35,11 +38,17 @@
     {% elif interaction.interaction_type.value == "quote" %}
       <span class="ap-interaction-label">🗣️ quoted this</span>
       {% if interaction.content %}
-        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
+        <div class="ap-interaction-content{{ ' ap-interaction-collapsible' if interaction.content|length > 1000 }}">{{ sanitize_html(interaction.content) }}</div>
+        {% if interaction.content|length > 1000 %}
+          <label class="ap-interaction-expand"><input type="checkbox" class="ap-interaction-toggle"></label>
+        {% endif %}
       {% endif %}
     {% elif interaction.interaction_type.value == "mention" %}
       {% if interaction.content %}
-        <div class="ap-interaction-content">{{ sanitize_html(interaction.content) }}</div>
+        <div class="ap-interaction-content{{ ' ap-interaction-collapsible' if interaction.content|length > 1000 }}">{{ sanitize_html(interaction.content) }}</div>
+        {% if interaction.content|length > 1000 %}
+          <label class="ap-interaction-expand"><input type="checkbox" class="ap-interaction-toggle"></label>
+        {% endif %}
       {% else %}
         <span class="ap-interaction-label">mentioned this</span>
       {% endif %}

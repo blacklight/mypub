@@ -133,6 +133,84 @@ class TestRenderMultipleInteractions:
         assert "ap-interactions" in html
 
 
+class TestCollapsibleContent:
+    def test_long_reply_has_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        long_content = "<p>" + "x" * 1100 + "</p>"
+        interaction = _make_interaction(
+            interaction_type=InteractionType.REPLY,
+            content=long_content,
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" in html
+        assert "ap-interaction-toggle" in html
+        assert "ap-interaction-expand" in html
+
+    def test_short_reply_has_no_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        interaction = _make_interaction(
+            interaction_type=InteractionType.REPLY,
+            content="<p>Short reply</p>",
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" not in html
+        assert "ap-interaction-toggle" not in html
+        assert "ap-interaction-expand" not in html
+
+    def test_like_has_no_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        interaction = _make_interaction(
+            interaction_type=InteractionType.LIKE,
+            content="",
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" not in html
+        assert "ap-interaction-toggle" not in html
+
+    def test_boost_has_no_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        interaction = _make_interaction(
+            interaction_type=InteractionType.BOOST,
+            content="",
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" not in html
+        assert "ap-interaction-toggle" not in html
+
+    def test_long_quote_has_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        long_content = "<p>" + "q" * 1100 + "</p>"
+        interaction = _make_interaction(
+            interaction_type=InteractionType.QUOTE,
+            content=long_content,
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" in html
+        assert "ap-interaction-toggle" in html
+
+    def test_long_mention_has_collapsible_toggle(self):
+        renderer = InteractionsRenderer()
+        long_content = "<p>" + "m" * 1100 + "</p>"
+        interaction = _make_interaction(
+            interaction_type=InteractionType.MENTION,
+            content=long_content,
+        )
+
+        html = str(renderer.render_interaction(interaction))
+        assert "ap-interaction-collapsible" in html
+        assert "ap-interaction-toggle" in html
+
+    def test_collapsible_css_in_collection(self):
+        renderer = InteractionsRenderer()
+        html = str(renderer.render_interactions([_make_interaction()]))
+        assert "ap-interaction-collapsible" in html  # CSS class is in the <style>
+
+
 class TestHTMLValidity:
     def test_output_contains_div(self):
         renderer = InteractionsRenderer()

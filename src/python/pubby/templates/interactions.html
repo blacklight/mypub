@@ -70,6 +70,56 @@
   line-height: 1.45em;
 }
 
+.ap-interaction .ap-interaction-content.ap-interaction-collapsible {
+  max-height: 8em;
+  overflow: hidden;
+  position: relative;
+  transition: max-height 0.35s cubic-bezier(0, 1, 0, 1);
+}
+
+.ap-interaction .ap-interaction-content.ap-interaction-collapsible::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 2em;
+  background: linear-gradient(to bottom, transparent, var(--color-bg));
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.ap-interaction:has(.ap-interaction-toggle:checked) .ap-interaction-content.ap-interaction-collapsible {
+  max-height: 80em;
+  transition: max-height 0.35s ease-in;
+}
+
+.ap-interaction:has(.ap-interaction-toggle:checked) .ap-interaction-content.ap-interaction-collapsible::after {
+  opacity: 0;
+}
+
+.ap-interaction .ap-interaction-toggle {
+  display: none;
+}
+
+.ap-interaction .ap-interaction-expand {
+  display: block;
+  cursor: pointer;
+  text-align: center;
+  font-size: 0.75em;
+  color: var(--color-fg-tertiary);
+  padding: 0.25em 0;
+  user-select: none;
+}
+
+.ap-interaction .ap-interaction-expand::after {
+  content: 'show more \25BE';
+}
+
+.ap-interaction:has(.ap-interaction-toggle:checked) .ap-interaction-expand::after {
+  content: 'show less \25B4';
+}
+
 .ap-interaction .ap-interaction-label {
   color: var(--color-fg-tertiary);
   font-size: 0.9em;
