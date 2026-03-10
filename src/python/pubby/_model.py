@@ -494,6 +494,7 @@ class Interaction:
     metadata: dict = field(default_factory=dict)
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    mentioned_actors: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         """Return a JSON-serializable dictionary."""
@@ -528,6 +529,7 @@ class Interaction:
             metadata=data.get("metadata", {}),
             created_at=_parse_dt(data.get("created_at")),
             updated_at=_parse_dt(data.get("updated_at")),
+            mentioned_actors=data.get("mentioned_actors", []),
         )
 
 

@@ -543,6 +543,40 @@ Key fields: `id`, `type`, `name`, `content`, `url`, `attributed_to`,
 `published`, `updated`, `summary`, `to`, `cc`, `tag`, `media_type`,
 `quote_control`, `quote_policy`, `interaction_policy`.
 
+#### `Interaction`
+
+Represents a stored interaction from the fediverse (reply, like, boost, mention, quote):
+
+```python
+from pubby import Interaction, InteractionType, InteractionStatus
+
+interaction = Interaction(
+    source_actor_id="https://mastodon.social/users/alice",
+    target_resource="https://example.com/posts/1",
+    interaction_type=InteractionType.REPLY,
+    content="<p>Great post!</p>",
+    author_name="Alice",
+    author_url="https://mastodon.social/@alice",
+    mentioned_actors=["https://example.com/ap/actor"],
+)
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `source_actor_id` | `str` | Actor URL of the interaction author |
+| `target_resource` | `str` | URL of the resource being interacted with |
+| `interaction_type` | `InteractionType` | `REPLY`, `LIKE`, `BOOST`, `MENTION`, or `QUOTE` |
+| `activity_id` | `str` | ActivityPub activity ID |
+| `object_id` | `str` | ActivityPub object ID (for replies/quotes) |
+| `content` | `str` | HTML content (for replies/quotes/mentions) |
+| `author_name` | `str` | Display name of the author |
+| `author_url` | `str` | Profile URL of the author |
+| `author_photo` | `str` | Avatar URL of the author |
+| `published` | `datetime` | When the interaction was published |
+| `status` | `InteractionStatus` | `PENDING`, `CONFIRMED`, or `DELETED` |
+| `metadata` | `dict` | Additional data (e.g. `raw_object`) |
+| `mentioned_actors` | `list[str]` | Actor URLs mentioned in this interaction |
+
 #### Quote policies (Mastodon)
 
 Mastodon reads quote permissions from the ActivityPub object's

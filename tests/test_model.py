@@ -287,6 +287,43 @@ class TestInteraction:
         )
         assert hash(i1) == hash(i2)
 
+    def test_mentioned_actors_field(self):
+        interaction = Interaction(
+            source_actor_id="https://remote.example.com/users/alice",
+            target_resource="https://blog.example.com/posts/1",
+            interaction_type=InteractionType.REPLY,
+            mentioned_actors=[
+                "https://blog.example.com/ap/actor",
+                "https://other.example.com/users/bob",
+            ],
+        )
+        assert len(interaction.mentioned_actors) == 2
+        assert "https://blog.example.com/ap/actor" in interaction.mentioned_actors
+
+        d = interaction.to_dict()
+        assert d["mentioned_actors"] == [
+            "https://blog.example.com/ap/actor",
+            "https://other.example.com/users/bob",
+        ]
+
+    def test_mentioned_actors_build(self):
+        data = {
+            "source_actor_id": "https://remote.example.com/users/alice",
+            "target_resource": "https://blog.example.com/posts/1",
+            "interaction_type": "reply",
+            "mentioned_actors": ["https://blog.example.com/ap/actor"],
+        }
+        interaction = Interaction.build(data)
+        assert interaction.mentioned_actors == ["https://blog.example.com/ap/actor"]
+
+    def test_mentioned_actors_defaults_empty(self):
+        interaction = Interaction(
+            source_actor_id="a",
+            target_resource="b",
+            interaction_type=InteractionType.LIKE,
+        )
+        assert interaction.mentioned_actors == []
+
 
 class TestFollower:
     def test_build_and_to_dict(self):
