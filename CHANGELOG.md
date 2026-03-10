@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.5
 
 ### Changed
 - Collapsed long interaction bodies (reply/quote/mention) over 1000 characters with a “show more/less” toggle to improve rendering readability.
