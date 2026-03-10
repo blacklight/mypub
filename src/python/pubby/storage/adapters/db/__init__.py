@@ -4,6 +4,7 @@ from ._model import (
     DbActorCache,
     DbFollower,
     DbInteraction,
+    DbInteractionMention,
 )
 from ._storage import DbActivityPubStorage
 
@@ -13,5 +14,6 @@ __all__ = [
     "DbActorCache",
     "DbFollower",
     "DbInteraction",
+    "DbInteractionMention",
     "init_db_storage",
 ]

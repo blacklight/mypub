@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Any, Callable
 
 import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +12,41 @@ from ...._model import (
     InteractionType,
 )
 from ..._base import ActivityPubStorage
-from ._model import DbActivity, DbActorCache, DbFollower, DbInteraction
+from ._model import (
+    DbActivity,
+    DbActorCache,
+    DbFollower,
+    DbInteraction,
+)
+
+
+def _get_upsert_stmt(
+    engine: sa.Engine,
+    table: sa.Table,
+    values: dict[str, Any],
+    index_elements: list[str],
+    update_columns: list[str],
+) -> Any:
+    """
+    Build a dialect-specific upsert statement.
+
+    For SQLite/PostgreSQL uses INSERT ... ON CONFLICT DO UPDATE.
+    Returns None for unsupported dialects (caller should use fallback).
+    """
+    dialect = engine.dialect.name
+
+    if dialect == "sqlite":
+        from sqlalchemy.dialects.sqlite import insert
+    elif dialect == "postgresql":
+        from sqlalchemy.dialects.postgresql import insert
+    else:
+        return None  # Unsupported dialect
+
+    stmt = insert(table).values(**values)
+    return stmt.on_conflict_do_update(
+        index_elements=index_elements,
+        set_={col: values[col] for col in update_columns},
+    )
 
 
 class DbActivityPubStorage(ActivityPubStorage):
@@ -50,28 +84,43 @@ class DbActivityPubStorage(ActivityPubStorage):
     def store_follower(self, follower: Follower):
         session = self.session_factory()
         try:
-            try:
-                session.add(self.follower_model.from_follower(follower))
-                session.commit()
-                return
-            except IntegrityError:
-                session.rollback()
+            table = self.follower_model.__table__  # type: ignore
+            values = {
+                "actor_id": follower.actor_id,
+                "inbox": follower.inbox,
+                "shared_inbox": follower.shared_inbox,
+                "followed_at": follower.followed_at or datetime.now(timezone.utc),
+                "actor_data": follower.actor_data or {},
+            }
 
-            existing = (
-                session.query(self.follower_model)
-                .filter(self.follower_model.actor_id == follower.actor_id)
-                .one_or_none()
+            stmt = _get_upsert_stmt(
+                self.engine,
+                table,
+                values,
+                index_elements=["actor_id"],
+                update_columns=["inbox", "shared_inbox", "actor_data"],
             )
 
-            if existing is None:
-                session.add(self.follower_model.from_follower(follower))
+            if stmt is not None:
+                session.execute(stmt)
                 session.commit()
-                return
-
-            existing.inbox = follower.inbox
-            existing.shared_inbox = follower.shared_inbox
-            existing.actor_data = follower.actor_data
-            session.commit()
+            else:
+                # Fallback for unsupported dialects
+                try:
+                    session.add(self.follower_model.from_follower(follower))
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    existing = (
+                        session.query(self.follower_model)
+                        .filter(self.follower_model.actor_id == follower.actor_id)
+                        .one_or_none()
+                    )
+                    if existing is not None:
+                        existing.inbox = follower.inbox
+                        existing.shared_inbox = follower.shared_inbox
+                        existing.actor_data = follower.actor_data
+                        session.commit()
         finally:
             session.close()
 
@@ -98,45 +147,110 @@ class DbActivityPubStorage(ActivityPubStorage):
 
     def store_interaction(self, interaction: Interaction):
         session = self.session_factory()
+        now = datetime.now(timezone.utc)
         try:
-            try:
-                session.add(self.interaction_model.from_interaction(interaction))
-                session.commit()
-                return
-            except IntegrityError:
-                session.rollback()
+            table = self.interaction_model.__table__  # type: ignore
+            values = {
+                "source_actor_id": interaction.source_actor_id,
+                "target_resource": interaction.target_resource,
+                "interaction_type": interaction.interaction_type,
+                "activity_id": interaction.activity_id,
+                "object_id": interaction.object_id,
+                "content": interaction.content,
+                "author_name": interaction.author_name,
+                "author_url": interaction.author_url,
+                "author_photo": interaction.author_photo,
+                "published": interaction.published,
+                "status": interaction.status,
+                "meta": interaction.metadata or {},
+                "created_at": interaction.created_at or now,
+                "updated_at": now,
+            }
 
-            existing = (
-                session.query(self.interaction_model)
-                .filter(
-                    sa.and_(
-                        self.interaction_model.source_actor_id
-                        == interaction.source_actor_id,
-                        self.interaction_model.target_resource
-                        == interaction.target_resource,
-                        self.interaction_model.interaction_type
-                        == interaction.interaction_type,
-                    )
-                )
-                .one_or_none()
+            stmt = _get_upsert_stmt(
+                self.engine,
+                table,
+                values,
+                index_elements=[
+                    "source_actor_id",
+                    "target_resource",
+                    "interaction_type",
+                ],
+                update_columns=[
+                    "activity_id",
+                    "object_id",
+                    "content",
+                    "author_name",
+                    "author_url",
+                    "author_photo",
+                    "published",
+                    "status",
+                    "meta",
+                    "updated_at",
+                ],
             )
 
-            if existing is None:
-                session.add(self.interaction_model.from_interaction(interaction))
+            if stmt is not None:
+                session.execute(stmt)
                 session.commit()
-                return
+            else:
+                # Fallback for unsupported dialects
+                try:
+                    session.add(self.interaction_model.from_interaction(interaction))
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    existing = (
+                        session.query(self.interaction_model)
+                        .filter(
+                            sa.and_(
+                                self.interaction_model.source_actor_id
+                                == interaction.source_actor_id,
+                                self.interaction_model.target_resource
+                                == interaction.target_resource,
+                                self.interaction_model.interaction_type
+                                == interaction.interaction_type,
+                            )
+                        )
+                        .one_or_none()
+                    )
+                    if existing is not None:
+                        existing.activity_id = interaction.activity_id
+                        existing.object_id = interaction.object_id
+                        existing.content = interaction.content
+                        existing.author_name = interaction.author_name
+                        existing.author_url = interaction.author_url
+                        existing.author_photo = interaction.author_photo
+                        existing.published = interaction.published
+                        existing.status = interaction.status
+                        existing.meta = interaction.metadata or {}
+                        existing.updated_at = now
+                        session.commit()
 
-            existing.activity_id = interaction.activity_id
-            existing.object_id = interaction.object_id
-            existing.content = interaction.content
-            existing.author_name = interaction.author_name
-            existing.author_url = interaction.author_url
-            existing.author_photo = interaction.author_photo
-            existing.published = interaction.published
-            existing.status = interaction.status
-            existing.meta = interaction.metadata or {}
-            existing.updated_at = datetime.now(timezone.utc)
-            session.commit()
+            # Store mentions if model is configured
+            if (
+                self.interaction_mention_model is not None
+                and interaction.mentioned_actors
+            ):
+                # Fetch the interaction ID for mention storage
+                db_interaction = (
+                    session.query(self.interaction_model)
+                    .filter(
+                        sa.and_(
+                            self.interaction_model.source_actor_id
+                            == interaction.source_actor_id,
+                            self.interaction_model.target_resource
+                            == interaction.target_resource,
+                            self.interaction_model.interaction_type
+                            == interaction.interaction_type,
+                        )
+                    )
+                    .one_or_none()
+                )
+                if db_interaction is not None:
+                    self._store_mentions(
+                        session, db_interaction.id, interaction.mentioned_actors
+                    )
         finally:
             session.close()
 
@@ -220,38 +334,47 @@ class DbActivityPubStorage(ActivityPubStorage):
 
     def store_activity(self, activity_id: str, activity_data: dict):
         session = self.session_factory()
+        now = datetime.now(timezone.utc)
         try:
-            try:
-                session.add(
-                    self.activity_model(
-                        activity_id=activity_id,
-                        activity_data=activity_data,
-                        created_at=datetime.now(timezone.utc),
-                    )
-                )
-                session.commit()
-                return
-            except IntegrityError:
-                session.rollback()
+            table = self.activity_model.__table__  # type: ignore
+            values = {
+                "activity_id": activity_id,
+                "activity_data": activity_data,
+                "created_at": now,
+            }
 
-            existing = (
-                session.query(self.activity_model)
-                .filter(self.activity_model.activity_id == activity_id)
-                .one_or_none()
+            stmt = _get_upsert_stmt(
+                self.engine,
+                table,
+                values,
+                index_elements=["activity_id"],
+                update_columns=["activity_data"],
             )
 
-            if existing is not None:
-                existing.activity_data = activity_data
+            if stmt is not None:
+                session.execute(stmt)
                 session.commit()
             else:
-                session.add(
-                    self.activity_model(
-                        activity_id=activity_id,
-                        activity_data=activity_data,
-                        created_at=datetime.now(timezone.utc),
+                # Fallback for unsupported dialects
+                try:
+                    session.add(
+                        self.activity_model(
+                            activity_id=activity_id,
+                            activity_data=activity_data,
+                            created_at=now,
+                        )
                     )
-                )
-                session.commit()
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    existing = (
+                        session.query(self.activity_model)
+                        .filter(self.activity_model.activity_id == activity_id)
+                        .one_or_none()
+                    )
+                    if existing is not None:
+                        existing.activity_data = activity_data
+                        session.commit()
         finally:
             session.close()
 
@@ -284,38 +407,46 @@ class DbActivityPubStorage(ActivityPubStorage):
         now = fetched_at or datetime.now(timezone.utc)
         session = self.session_factory()
         try:
-            try:
-                session.add(
-                    self.actor_cache_model(
-                        actor_id=actor_id,
-                        actor_data=actor_data,
-                        fetched_at=now,
-                    )
-                )
-                session.commit()
-                return
-            except IntegrityError:
-                session.rollback()
+            table = self.actor_cache_model.__table__  # type: ignore
+            values = {
+                "actor_id": actor_id,
+                "actor_data": actor_data,
+                "fetched_at": now,
+            }
 
-            existing = (
-                session.query(self.actor_cache_model)
-                .filter(self.actor_cache_model.actor_id == actor_id)
-                .one_or_none()
+            stmt = _get_upsert_stmt(
+                self.engine,
+                table,
+                values,
+                index_elements=["actor_id"],
+                update_columns=["actor_data", "fetched_at"],
             )
 
-            if existing is not None:
-                existing.actor_data = actor_data
-                existing.fetched_at = now
+            if stmt is not None:
+                session.execute(stmt)
                 session.commit()
             else:
-                session.add(
-                    self.actor_cache_model(
-                        actor_id=actor_id,
-                        actor_data=actor_data,
-                        fetched_at=now,
+                # Fallback for unsupported dialects
+                try:
+                    session.add(
+                        self.actor_cache_model(
+                            actor_id=actor_id,
+                            actor_data=actor_data,
+                            fetched_at=now,
+                        )
                     )
-                )
-                session.commit()
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+                    existing = (
+                        session.query(self.actor_cache_model)
+                        .filter(self.actor_cache_model.actor_id == actor_id)
+                        .one_or_none()
+                    )
+                    if existing is not None:
+                        existing.actor_data = actor_data
+                        existing.fetched_at = now
+                        session.commit()
         finally:
             session.close()
 

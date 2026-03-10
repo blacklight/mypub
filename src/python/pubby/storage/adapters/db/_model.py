@@ -171,3 +171,32 @@ class DbActorCache:
     @classmethod
     def columns(cls) -> set[str]:
         return {c.name for c in cls.__table__.columns}  # type: ignore
+
+
+class DbInteractionMention:
+    """
+    SQLAlchemy base model for interaction mentions (join table).
+
+    Maps interactions to the actor URLs they mention, enabling efficient
+    lookups via ``get_interactions_mentioning()``.
+    """
+
+    id = sa.Column(sa.Integer, primary_key=True, autoincrement=True)
+    interaction_id = sa.Column(sa.Integer, nullable=False)
+    mentioned_actor_url = sa.Column(sa.String, nullable=False, index=True)
+
+    __table_args__ = (
+        sa.UniqueConstraint(
+            "interaction_id",
+            "mentioned_actor_url",
+            name="uix_interaction_mention",
+        ),
+    )
+
+    def __init__(self, *_, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+    @classmethod
+    def columns(cls) -> set[str]:
+        return {c.name for c in cls.__table__.columns}  # type: ignore
