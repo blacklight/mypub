@@ -2,6 +2,33 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+
+- **Mention indexing** — Interactions now track which actors they mention via
+  the `mentioned_actors` field. Mentions are automatically extracted from
+  ActivityPub `tag` arrays when processing incoming `Create` activities.
+- **`get_interactions_mentioning(actor_url)`** — New storage method to retrieve
+  all interactions that mention a given actor URL. Implemented in both file and
+  DB storage adapters.
+- **`DbInteractionMention`** — New SQLAlchemy model for the mention join table.
+  Pass `interaction_mention_model` to `DbActivityPubStorage` to enable the
+  mention index for DB storage.
+- **`backfill_mentions(storage)`** — Migration utility to populate
+  `mentioned_actors` for existing interactions by extracting mentions from
+  stored `raw_object` metadata.
+- **`store_local_only`** parameter on `ActivityPubHandler` — When `True`, only
+  stores interactions targeting local URLs or mentioning the local actor.
+  Useful for filtering out interactions on remote resources.
+- **`local_base_urls`** parameter on `ActivityPubHandler` — List of base URLs
+  considered "local" for the `store_local_only` filter.
+
+### Changed
+
+- DB storage now uses idempotent upsert operations (`INSERT ... ON CONFLICT DO
+  UPDATE`) for SQLite and PostgreSQL, improving performance and replay safety.
+
 ## 0.2.5
 
 ### Changed

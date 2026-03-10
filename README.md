@@ -723,6 +723,66 @@ Abstract base class. Built-in adapters:
 
 See [Custom Storage](#custom-storage) for implementing your own.
 
+#### DB Storage: Mention Index
+
+To enable `get_interactions_mentioning()` with the DB adapter, add the
+`DbInteractionMention` model to your schema:
+
+```python
+from sqlalchemy.orm import declarative_base
+from pubby.storage.adapters.db import (
+    DbActivityPubStorage,
+    DbFollower,
+    DbInteraction,
+    DbInteractionMention,
+    DbActivity,
+    DbActorCache,
+)
+
+Base = declarative_base()
+
+class InteractionMention(Base, DbInteractionMention):
+    __tablename__ = "interaction_mentions"
+
+# ... other models ...
+
+storage = DbActivityPubStorage(
+    engine=engine,
+    follower_model=Follower,
+    interaction_model=Interaction,
+    activity_model=Activity,
+    actor_cache_model=ActorCache,
+    interaction_mention_model=InteractionMention,  # Enable mention index
+    session_factory=session_factory,
+)
+```
+
+### Migrations
+
+#### `backfill_mentions(storage, dry_run=False)`
+
+Backfill `mentioned_actors` for existing interactions by extracting mentions
+from the `raw_object` stored in metadata. Useful after upgrading to a version
+with mention indexing:
+
+```python
+from pubby.storage import backfill_mentions
+from pubby.storage.adapters.file import FileActivityPubStorage
+
+storage = FileActivityPubStorage("/path/to/data")
+
+# Preview changes
+stats = backfill_mentions(storage, dry_run=True)
+print(stats)
+# {'scanned': 42, 'updated': 15, 'skipped_no_metadata': 10, ...}
+
+# Apply changes
+stats = backfill_mentions(storage)
+```
+
+Currently supports `FileActivityPubStorage`. For DB storage, run a direct SQL
+migration to populate the `interaction_mentions` table from existing data.
+
 ### Crypto
 
 ```python
