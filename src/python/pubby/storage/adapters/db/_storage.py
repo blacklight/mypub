@@ -17,6 +17,7 @@ from ._model import (
     DbActorCache,
     DbFollower,
     DbInteraction,
+    DbInteractionMention,
 )
 
 
@@ -58,6 +59,8 @@ class DbActivityPubStorage(ActivityPubStorage):
     :param interaction_model: Mapped model inheriting from DbInteraction.
     :param activity_model: Mapped model inheriting from DbActivity.
     :param actor_cache_model: Mapped model inheriting from DbActorCache.
+    :param interaction_mention_model: Optional model inheriting from
+        DbInteractionMention. Required for ``get_interactions_mentioning()``.
     :param session_factory: SQLAlchemy session factory.
     """
 
@@ -69,6 +72,7 @@ class DbActivityPubStorage(ActivityPubStorage):
         interaction_model: type[DbInteraction],
         activity_model: type[DbActivity],
         actor_cache_model: type[DbActorCache],
+        interaction_mention_model: type[DbInteractionMention] | None = None,
         session_factory: Callable[[], Session],
         **__,
     ):
@@ -78,6 +82,7 @@ class DbActivityPubStorage(ActivityPubStorage):
         self.interaction_model = interaction_model
         self.activity_model = activity_model
         self.actor_cache_model = actor_cache_model
+        self.interaction_mention_model = interaction_mention_model
 
     # ---------- Followers ----------
 
@@ -254,6 +259,57 @@ class DbActivityPubStorage(ActivityPubStorage):
         finally:
             session.close()
 
+    def _store_mentions(
+        self,
+        session: Session,
+        interaction_id: int,
+        mentioned_actors: list[str],
+    ) -> None:
+        """Store mention entries for an interaction (idempotent).
+
+        Uses INSERT OR IGNORE pattern where supported, falling back to
+        individual inserts with conflict handling for other backends.
+        """
+        if self.interaction_mention_model is None or not mentioned_actors:
+            return
+
+        table = self.interaction_mention_model.__table__  # type: ignore
+        dialect = self.engine.dialect.name
+
+        if dialect in ("sqlite", "postgresql"):
+            # Use INSERT ... ON CONFLICT DO NOTHING for efficiency
+            from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+            from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+            insert_fn = pg_insert if dialect == "postgresql" else sqlite_insert
+            stmt = insert_fn(table).values(
+                [
+                    {
+                        "interaction_id": interaction_id,
+                        "mentioned_actor_url": actor_url,
+                    }
+                    for actor_url in mentioned_actors
+                ]
+            )
+            stmt = stmt.on_conflict_do_nothing(
+                index_elements=["interaction_id", "mentioned_actor_url"]
+            )
+            session.execute(stmt)
+            session.commit()
+        else:
+            # Fallback: individual inserts with conflict handling
+            for actor_url in mentioned_actors:
+                try:
+                    session.add(
+                        self.interaction_mention_model(
+                            interaction_id=interaction_id,
+                            mentioned_actor_url=actor_url,
+                        )
+                    )
+                    session.commit()
+                except IntegrityError:
+                    session.rollback()
+
     def delete_interaction(
         self,
         source_actor_id: str,
@@ -326,9 +382,64 @@ class DbActivityPubStorage(ActivityPubStorage):
                 query = query.filter(
                     self.interaction_model.interaction_type == interaction_type
                 )
-            return [row.to_interaction() for row in query.all()]
+            return [
+                self._to_interaction_with_mentions(session, row) for row in query.all()
+            ]
         finally:
             session.close()
+
+    def get_interactions_mentioning(
+        self,
+        actor_url: str,
+        interaction_type: InteractionType | None = None,
+        status: InteractionStatus = InteractionStatus.CONFIRMED,
+    ) -> list[Interaction]:
+        """Retrieve interactions that mention a given actor URL."""
+        if self.interaction_mention_model is None:
+            return []
+
+        session = self.session_factory()
+        try:
+            # Join interactions with mentions
+            query = (
+                session.query(self.interaction_model)
+                .join(
+                    self.interaction_mention_model,
+                    self.interaction_model.id
+                    == self.interaction_mention_model.interaction_id,
+                )
+                .filter(
+                    sa.and_(
+                        self.interaction_mention_model.mentioned_actor_url == actor_url,
+                        self.interaction_model.status == status,
+                    )
+                )
+            )
+            if interaction_type is not None:
+                query = query.filter(
+                    self.interaction_model.interaction_type == interaction_type
+                )
+            return [
+                self._to_interaction_with_mentions(session, row) for row in query.all()
+            ]
+        finally:
+            session.close()
+
+    def _to_interaction_with_mentions(
+        self, session: Session, db_interaction: DbInteraction
+    ) -> Interaction:
+        """Convert a DB interaction to an Interaction, including mentioned_actors."""
+        interaction = db_interaction.to_interaction()
+        if self.interaction_mention_model is not None:
+            mentions = (
+                session.query(self.interaction_mention_model)
+                .filter(
+                    self.interaction_mention_model.interaction_id == db_interaction.id
+                )
+                .all()
+            )
+            interaction.mentioned_actors = [m.mentioned_actor_url for m in mentions]
+        return interaction
 
     # ---------- Activities ----------
 

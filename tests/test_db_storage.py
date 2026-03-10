@@ -264,3 +264,163 @@ class TestActorCache:
 
     def test_cache_miss(self, storage):
         assert storage.get_cached_actor("https://nonexistent.example.com") is None
+
+
+class TestMentionIndex:
+    """Tests for the DB mention index (requires interaction_mention_model)."""
+
+    @pytest.fixture
+    def storage_with_mentions(self):
+        """Create storage with mention model configured."""
+        import sqlalchemy as sa
+        from sqlalchemy.orm import declarative_base, sessionmaker
+
+        from pubby.storage.adapters.db import (
+            DbActivity,
+            DbActorCache,
+            DbActivityPubStorage,
+            DbFollower,
+            DbInteraction,
+            DbInteractionMention,
+        )
+
+        Base = declarative_base()
+
+        class Follower(Base, DbFollower):
+            __tablename__ = "followers"
+
+        class InteractionModel(Base, DbInteraction):
+            __tablename__ = "interactions"
+
+        class Activity(Base, DbActivity):
+            __tablename__ = "activities"
+
+        class ActorCache(Base, DbActorCache):
+            __tablename__ = "actor_cache"
+
+        class InteractionMention(Base, DbInteractionMention):
+            __tablename__ = "interaction_mentions"
+
+        engine = sa.create_engine("sqlite:///:memory:")
+        Base.metadata.create_all(engine)
+        session_factory = sessionmaker(bind=engine)
+
+        return DbActivityPubStorage(
+            engine=engine,
+            follower_model=Follower,
+            interaction_model=InteractionModel,
+            activity_model=Activity,
+            actor_cache_model=ActorCache,
+            interaction_mention_model=InteractionMention,
+            session_factory=session_factory,
+        )
+
+    def test_store_with_mentions(self, storage_with_mentions):
+        now = datetime.now(timezone.utc)
+        interaction = Interaction(
+            source_actor_id="https://remote.example.com/users/alice",
+            target_resource="https://other.example.com/posts/1",
+            interaction_type=InteractionType.REPLY,
+            content="@blog Hello!",
+            mentioned_actors=["https://blog.example.com/ap/actor"],
+            created_at=now,
+            updated_at=now,
+        )
+        storage_with_mentions.store_interaction(interaction)
+
+        results = storage_with_mentions.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert len(results) == 1
+        assert results[0].source_actor_id == "https://remote.example.com/users/alice"
+        assert "https://blog.example.com/ap/actor" in results[0].mentioned_actors
+
+    def test_get_interactions_mentioning_empty(self, storage_with_mentions):
+        results = storage_with_mentions.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert results == []
+
+    def test_get_interactions_mentioning_filter_by_type(self, storage_with_mentions):
+        now = datetime.now(timezone.utc)
+        storage_with_mentions.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/alice",
+                target_resource="https://other.example.com/posts/1",
+                interaction_type=InteractionType.REPLY,
+                mentioned_actors=["https://blog.example.com/ap/actor"],
+                created_at=now,
+                updated_at=now,
+            )
+        )
+        storage_with_mentions.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/bob",
+                target_resource="https://other.example.com/posts/2",
+                interaction_type=InteractionType.MENTION,
+                mentioned_actors=["https://blog.example.com/ap/actor"],
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+        replies = storage_with_mentions.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor",
+            interaction_type=InteractionType.REPLY,
+        )
+        assert len(replies) == 1
+        assert replies[0].interaction_type == InteractionType.REPLY
+
+    def test_multiple_mentions(self, storage_with_mentions):
+        now = datetime.now(timezone.utc)
+        storage_with_mentions.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/alice",
+                target_resource="https://other.example.com/posts/1",
+                interaction_type=InteractionType.REPLY,
+                mentioned_actors=[
+                    "https://blog.example.com/ap/actor",
+                    "https://other.example.com/ap/actor",
+                ],
+                created_at=now,
+                updated_at=now,
+            )
+        )
+
+        results1 = storage_with_mentions.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        results2 = storage_with_mentions.get_interactions_mentioning(
+            "https://other.example.com/ap/actor"
+        )
+
+        assert len(results1) == 1
+        assert len(results2) == 1
+
+    def test_without_mention_model_returns_empty(self, storage):
+        """Storage without mention model should return empty list."""
+        results = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert results == []
+
+    def test_store_mentions_idempotent(self, storage_with_mentions):
+        """Storing the same interaction twice should not create duplicate mentions."""
+        now = datetime.now(timezone.utc)
+        interaction = Interaction(
+            source_actor_id="https://remote.example.com/users/alice",
+            target_resource="https://other.example.com/posts/1",
+            interaction_type=InteractionType.REPLY,
+            mentioned_actors=["https://blog.example.com/ap/actor"],
+            created_at=now,
+            updated_at=now,
+        )
+
+        # Store twice
+        storage_with_mentions.store_interaction(interaction)
+        storage_with_mentions.store_interaction(interaction)
+
+        results = storage_with_mentions.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert len(results) == 1
