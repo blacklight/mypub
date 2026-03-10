@@ -85,6 +85,13 @@ class InboxProcessor:
             actor_data = resp.json()
             self.storage.cache_remote_actor(actor_id, actor_data)
             return actor_data
+        except requests.HTTPError as e:
+            # 410 Gone is expected when an actor has been deleted
+            if e.response is not None and e.response.status_code == 410:
+                logger.debug("Actor gone (deleted): %s", actor_id)
+            else:
+                logger.warning("Failed to fetch actor %s", actor_id, exc_info=True)
+            return None
         except Exception:
             logger.warning("Failed to fetch actor %s", actor_id, exc_info=True)
             return None

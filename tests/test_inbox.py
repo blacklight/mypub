@@ -860,3 +860,77 @@ class TestInteractionCallback:
         callback.assert_called_once()
         interaction = callback.call_args[0][0]
         assert interaction.interaction_type == InteractionType.QUOTE
+
+
+class TestFetchActorGone:
+    """Tests for _fetch_actor handling of 410 Gone responses."""
+
+    @patch("pubby.handlers._inbox.requests")
+    def test_fetch_actor_410_returns_none(
+        self, mock_requests, inbox_processor, mock_storage
+    ):
+        """410 Gone should return None without raising."""
+        import requests as real_requests
+
+        actor_id = "https://remote.example.com/users/deleted"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 410
+        mock_resp.raise_for_status.side_effect = real_requests.HTTPError(
+            response=mock_resp
+        )
+        mock_requests.get.return_value = mock_resp
+        mock_requests.HTTPError = real_requests.HTTPError
+
+        result = inbox_processor._fetch_actor(actor_id)
+
+        assert result is None
+        mock_storage.cache_remote_actor.assert_not_called()
+
+    @patch("pubby.handlers._inbox.requests")
+    @patch("pubby.handlers._inbox.logger")
+    def test_fetch_actor_410_logs_debug_not_warning(
+        self, mock_logger, mock_requests, inbox_processor, mock_storage
+    ):
+        """410 Gone should log at DEBUG level, not WARNING."""
+        import requests as real_requests
+
+        actor_id = "https://remote.example.com/users/deleted"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 410
+        mock_resp.raise_for_status.side_effect = real_requests.HTTPError(
+            response=mock_resp
+        )
+        mock_requests.get.return_value = mock_resp
+        mock_requests.HTTPError = real_requests.HTTPError
+
+        inbox_processor._fetch_actor(actor_id)
+
+        mock_logger.debug.assert_called_once()
+        assert "gone" in mock_logger.debug.call_args[0][0].lower()
+        mock_logger.warning.assert_not_called()
+
+    @patch("pubby.handlers._inbox.requests")
+    @patch("pubby.handlers._inbox.logger")
+    def test_fetch_actor_other_http_error_logs_warning(
+        self, mock_logger, mock_requests, inbox_processor, mock_storage
+    ):
+        """Non-410 HTTP errors should still log WARNING with traceback."""
+        import requests as real_requests
+
+        actor_id = "https://remote.example.com/users/error"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 500
+        mock_resp.raise_for_status.side_effect = real_requests.HTTPError(
+            response=mock_resp
+        )
+        mock_requests.get.return_value = mock_resp
+        mock_requests.HTTPError = real_requests.HTTPError
+
+        result = inbox_processor._fetch_actor(actor_id)
+
+        assert result is None
+        mock_logger.warning.assert_called_once()
+        mock_logger.debug.assert_not_called()
