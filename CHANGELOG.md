@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.4
 
 ### Fixed
 - **ActivityPub QuoteAuthorization routing:** QuoteAuthorization resources are
