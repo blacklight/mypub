@@ -237,6 +237,101 @@ class TestInteractions:
         assert storage.get_interactions("https://blog.example.com/nonexistent") == []
 
 
+class TestMentionIndex:
+    def test_store_with_mentions_creates_index(self, storage):
+        interaction = Interaction(
+            source_actor_id="https://remote.example.com/users/alice",
+            target_resource="https://other.example.com/posts/1",
+            interaction_type=InteractionType.REPLY,
+            content="@blog Hello!",
+            mentioned_actors=["https://blog.example.com/ap/actor"],
+        )
+        storage.store_interaction(interaction)
+
+        # Should be retrievable by mention
+        results = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert len(results) == 1
+        assert results[0].source_actor_id == "https://remote.example.com/users/alice"
+
+    def test_get_interactions_mentioning_empty(self, storage):
+        results = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert results == []
+
+    def test_get_interactions_mentioning_filter_by_type(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/alice",
+                target_resource="https://other.example.com/posts/1",
+                interaction_type=InteractionType.REPLY,
+                mentioned_actors=["https://blog.example.com/ap/actor"],
+            )
+        )
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/bob",
+                target_resource="https://other.example.com/posts/2",
+                interaction_type=InteractionType.MENTION,
+                mentioned_actors=["https://blog.example.com/ap/actor"],
+            )
+        )
+
+        replies = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor",
+            interaction_type=InteractionType.REPLY,
+        )
+        assert len(replies) == 1
+        assert replies[0].interaction_type == InteractionType.REPLY
+
+    def test_delete_removes_from_mention_index(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/alice",
+                target_resource="https://other.example.com/posts/1",
+                interaction_type=InteractionType.REPLY,
+                mentioned_actors=["https://blog.example.com/ap/actor"],
+            )
+        )
+
+        storage.delete_interaction(
+            "https://remote.example.com/users/alice",
+            "https://other.example.com/posts/1",
+            InteractionType.REPLY,
+        )
+
+        # Should not appear in mention results (filtered by status)
+        results = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        assert len(results) == 0
+
+    def test_multiple_mentions_indexed(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://remote.example.com/users/alice",
+                target_resource="https://other.example.com/posts/1",
+                interaction_type=InteractionType.REPLY,
+                mentioned_actors=[
+                    "https://blog.example.com/ap/actor",
+                    "https://other.example.com/ap/actor",
+                ],
+            )
+        )
+
+        results1 = storage.get_interactions_mentioning(
+            "https://blog.example.com/ap/actor"
+        )
+        results2 = storage.get_interactions_mentioning(
+            "https://other.example.com/ap/actor"
+        )
+
+        assert len(results1) == 1
+        assert len(results2) == 1
+
+
 class TestActivities:
     def test_store_and_get_activities(self, storage):
         storage.store_activity("act-1", {"id": "act-1", "type": "Create"})

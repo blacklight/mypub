@@ -7,8 +7,10 @@ Stores data as JSON files organized by type:
     ├── followers/
     │   └── {sanitized_actor_id}.json
     ├── interactions/
-    │   └── {sanitized_target}/
-    │       └── {type}-{sanitized_actor}.json
+    │   ├── {sanitized_target}/
+    │   │   └── {type}-{sanitized_actor}.json
+    │   └── _mentions/
+    │       └── {sanitized_actor}.json  (reverse index)
     ├── activities/
     │   └── {sanitized_activity_id}.json
     └── cache/
@@ -152,6 +154,10 @@ class FileActivityPubStorage(ActivityPubStorage):
         )
         self.write_json(path, interaction.to_dict())
 
+        # Update mention index for each mentioned actor
+        if interaction.mentioned_actors:
+            self._update_mention_index(interaction, add=True)
+
     def delete_interaction(
         self,
         source_actor_id: str,
@@ -164,6 +170,11 @@ class FileActivityPubStorage(ActivityPubStorage):
         # Mark as deleted rather than removing the file
         data = self.read_json(path)
         if data is not None:
+            # Remove from mention index before marking deleted
+            interaction = Interaction.build(data)
+            if interaction.mentioned_actors:
+                self._update_mention_index(interaction, add=False)
+
             data["status"] = InteractionStatus.DELETED.value
             data["updated_at"] = datetime.now(timezone.utc).isoformat()
             self.write_json(path, data)
@@ -217,6 +228,86 @@ class FileActivityPubStorage(ActivityPubStorage):
             ):
                 continue
             result.append(interaction)
+        return result
+
+    # ---------- Mention index ----------
+
+    def _mention_index_path(self, actor_url: str) -> Path:
+        """Path to the mention index file for a given actor."""
+        return (
+            self.data_dir
+            / "interactions"
+            / "_mentions"
+            / f"{_sanitize(actor_url)}.json"
+        )
+
+    def _update_mention_index(self, interaction: Interaction, add: bool) -> None:
+        """Add or remove an interaction from the mention index."""
+        for actor_url in interaction.mentioned_actors:
+            path = self._mention_index_path(actor_url)
+            lock = self._get_lock(str(path))
+            with lock:
+                index: list[dict] = []
+                if path.exists():
+                    index = json.loads(path.read_text(encoding="utf-8"))
+
+                entry = {
+                    "target_resource": interaction.target_resource,
+                    "interaction_type": interaction.interaction_type.value,
+                    "source_actor_id": interaction.source_actor_id,
+                }
+
+                if add:
+                    # Avoid duplicates
+                    if entry not in index:
+                        index.append(entry)
+                else:
+                    # Remove if present
+                    if entry in index:
+                        index.remove(entry)
+
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(index, indent=2), encoding="utf-8")
+
+    def get_interactions_mentioning(
+        self,
+        actor_url: str,
+        interaction_type: InteractionType | None = None,
+        status: InteractionStatus = InteractionStatus.CONFIRMED,
+    ) -> list[Interaction]:
+        """Retrieve interactions that mention a given actor URL."""
+        path = self._mention_index_path(actor_url)
+        if not path.exists():
+            return []
+
+        index = self.read_json(path)
+        if not index:
+            return []
+
+        result = []
+        for entry in index:
+            if (
+                interaction_type is not None
+                and entry.get("interaction_type") != interaction_type.value
+            ):
+                continue
+
+            itype = InteractionType(entry["interaction_type"])
+            interaction_path = self._interaction_path(
+                entry["source_actor_id"],
+                entry["target_resource"],
+                itype,
+            )
+            data = self.read_json(interaction_path)
+            if data is None:
+                continue
+
+            interaction = Interaction.build(data)
+            if interaction.status != status:
+                continue
+
+            result.append(interaction)
+
         return result
 
     # ---------- Activities ----------
