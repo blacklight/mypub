@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+## Changed
+- Outbox delivery retry logs now include the exception type and message for
+  failed attempts, while omitting full stack traces.
+
 ## 0.2.9
 
 ### Changed
