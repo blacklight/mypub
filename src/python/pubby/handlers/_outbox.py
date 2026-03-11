@@ -220,13 +220,14 @@ class OutboxProcessor:
                 success = self._deliver(inbox_url, activity)
                 if success:
                     return True
-            except Exception:
+            except Exception as e:
                 logger.warning(
-                    "Delivery attempt %d/%d to %s failed",
+                    "Delivery attempt %d/%d to %s failed: %s: %s",
                     attempt + 1,
                     self.max_retries,
                     inbox_url,
-                    exc_info=True,
+                    type(e).__name__,
+                    e,
                 )
 
             if attempt < self.max_retries - 1:
