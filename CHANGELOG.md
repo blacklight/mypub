@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.11
 
 ### Docs
 - Added missing **AGPL-3.0** license text (`LICENSE.txt`).
