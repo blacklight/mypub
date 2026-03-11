@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Fixed
+- **File storage:** Made `delete_interaction_by_object_id` more robust when
+  scanning `data_dir/interactions/*/*.json` by skipping non-dict JSON files
+  (e.g., reverse-mention index files stored as JSON lists), preventing
+  `AttributeError: 'list' object has no attribute 'get'`.
+- **Mention index consistency:** When deleting an interaction by `object_id`,
+  its entries are now also removed from `interactions/_mentions`, matching the
+  behavior of `delete_interaction`.
+
 ## 0.2.6
 
 ### Added
