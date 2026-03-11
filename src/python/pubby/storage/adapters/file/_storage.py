@@ -196,11 +196,16 @@ class FileActivityPubStorage(ActivityPubStorage):
                 data = self.read_json(fpath)
                 if data is None:
                     continue
+                if not isinstance(data, dict):
+                    continue
                 if (
                     data.get("source_actor_id") == source_actor_id
                     and data.get("object_id") == object_id
                     and data.get("status") != InteractionStatus.DELETED.value
                 ):
+                    interaction = Interaction.build(data)
+                    if interaction.mentioned_actors:
+                        self._update_mention_index(interaction, add=False)
                     data["status"] = InteractionStatus.DELETED.value
                     data["updated_at"] = datetime.now(timezone.utc).isoformat()
                     self.write_json(fpath, data)

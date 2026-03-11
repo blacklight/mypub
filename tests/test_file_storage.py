@@ -233,6 +233,28 @@ class TestInteractions:
         )
         assert found is False
 
+    def test_delete_interaction_by_object_id_ignores_mentions_index(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://example.com/users/alice",
+                target_resource="https://blog.example.com/post/1",
+                interaction_type=InteractionType.REPLY,
+                object_id="https://example.com/users/alice/statuses/123",
+                mentioned_actors=["https://example.com/users/bob"],
+            )
+        )
+
+        # Mention index is stored as a JSON list under interactions/_mentions.
+        mentions_dir = storage.data_dir / "interactions" / "_mentions"
+        mention_files = list(mentions_dir.glob("*.json"))
+        assert len(mention_files) == 1
+
+        found = storage.delete_interaction_by_object_id(
+            "https://example.com/users/alice",
+            "https://example.com/users/alice/statuses/123",
+        )
+        assert found is True
+
     def test_get_interactions_empty(self, storage):
         assert storage.get_interactions("https://blog.example.com/nonexistent") == []
 
