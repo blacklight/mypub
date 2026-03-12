@@ -53,6 +53,7 @@
     - [`handler.publish_actor_update()`](#handlerpublish_actor_update)
   - [Storage](#storage)
     - [`ActivityPubStorage`](#activitypubstorage)
+    - [`get_interaction_by_object_id(object_id, status=CONFIRMED)`](#get_interaction_by_object_idobject_id-statusconfirmed)
     - [DB Storage: Mention Index](#db-storage-mention-index)
   - [Migrations](#migrations)
     - [`backfill_mentions(storage, dry_run=False)`](#backfill_mentionsstorage-dry_runfalse)
@@ -379,6 +380,9 @@ class MyStorage(ActivityPubStorage):
 
     def get_interactions_mentioning(self, actor_url: str, interaction_type: str | None = None) -> list[Interaction]:
         ...  # Optional: returns interactions where actor_url is in mentioned_actors
+
+    def get_interaction_by_object_id(self, object_id: str, status: InteractionStatus = InteractionStatus.CONFIRMED) -> Interaction | None:
+        ...  # Optional: look up interaction by remote object URL
 
     def store_activity(self, activity_id: str, activity_data: dict):
         ...
@@ -781,6 +785,24 @@ Abstract base class. Built-in adapters:
 - `pubby.storage.adapters.file.FileActivityPubStorage(data_dir)` — JSON files
 
 See [Custom Storage](#custom-storage) for implementing your own.
+
+#### `get_interaction_by_object_id(object_id, status=CONFIRMED)`
+
+Look up an interaction by its remote object URL (e.g., a Mastodon status URL).
+Useful when you need to find an interaction without knowing its target resource:
+
+```python
+# Find who sent a particular reply
+interaction = storage.get_interaction_by_object_id(
+    "https://mastodon.social/users/alice/statuses/123456"
+)
+if interaction:
+    print(f"Reply from: {interaction.source_actor_id}")
+```
+
+Both storage adapters implement this efficiently:
+- **DB storage**: SQL query on the indexed `object_id` column
+- **File storage**: Uses an `_object_ids/` index directory for O(1) lookup
 
 #### DB Storage: Mention Index
 

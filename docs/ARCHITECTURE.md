@@ -259,7 +259,7 @@ Defines the contract every storage backend must fulfill:
 | Group | Methods |
 |-------|---------|
 | **Followers** | `store_follower()`, `remove_follower()`, `get_followers()` |
-| **Interactions** | `store_interaction()`, `delete_interaction()`, `delete_interaction_by_object_id()`, `get_interactions()` |
+| **Interactions** | `store_interaction()`, `delete_interaction()`, `delete_interaction_by_object_id()`, `get_interactions()`, `get_interaction_by_object_id()` |
 | **Activities** | `store_activity()`, `get_activities()` |
 | **Actor cache** | `cache_remote_actor()`, `get_cached_actor()` |
 | **Quote authorizations** | `store_quote_authorization()`, `get_quote_authorization()` |
@@ -291,7 +291,10 @@ directory tree:
 ```
 data_dir/
 ├── followers/{hash}.json
-├── interactions/{target_hash}/{type}-{actor_hash}.json
+├── interactions/
+│   ├── {target_hash}/{type}-{actor_hash}.json
+│   ├── _mentions/{actor_hash}.json      # mention index
+│   └── _object_ids/{object_id_hash}.json # object_id index
 ├── activities/{hash}.json
 ├── cache/actors/{hash}.json
 └── quote_authorizations/{hash}.json
@@ -300,6 +303,13 @@ data_dir/
 Thread-safe via per-path `RLock`.  Writes use atomic rename
 (`.tmp` → final).  Suitable for static-site generators or low-traffic
 setups that don't need a database.
+
+**Index directories** (prefixed with `_`) enable O(1) lookups:
+
+- **`_mentions/`** — maps actor URLs to interactions that mention them,
+  enabling `get_interactions_mentioning()`.
+- **`_object_ids/`** — maps remote object URLs to their interactions,
+  enabling `get_interaction_by_object_id()` without a full directory scan.
 
 ### 8. Render — `pubby.render`
 
