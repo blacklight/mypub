@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- File storage schema versioning via a `.schema_version` file, with automatic
+  migrations on `FileActivityPubStorage` initialization.
+- New `auto_migrate` option for `FileActivityPubStorage` to opt out of
+  automatic migrations.
+- Migration/backfill support for the `_object_ids/` index (v2) to enable fast
+  `get_interaction_by_object_id()` lookups on existing data.
+- New migration helper `backfill_object_id_index(storage, dry_run=False)`
+  exported from `pubby.storage`.
+
 ## 0.2.12
 
 ### Added
