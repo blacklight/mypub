@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.12
 
 ### Added
 - Added `ActivityPubStorage.get_interaction_by_object_id(object_id,
