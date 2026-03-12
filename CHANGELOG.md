@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.13
 
 ### Added
 - File storage schema versioning via a `.schema_version` file, with automatic
