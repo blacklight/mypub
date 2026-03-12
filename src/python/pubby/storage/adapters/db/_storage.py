@@ -319,6 +319,29 @@ class DbActivityPubStorage(ActivityPubStorage):
         finally:
             session.close()
 
+    def get_interaction_by_object_id(
+        self,
+        object_id: str,
+        status: InteractionStatus = InteractionStatus.CONFIRMED,
+    ) -> Interaction | None:
+        session = self.session_factory()
+        try:
+            row = (
+                session.query(self.interaction_model)
+                .filter(
+                    sa.and_(
+                        self.interaction_model.object_id == object_id,
+                        self.interaction_model.status == status,
+                    )
+                )
+                .first()
+            )
+            if row is None:
+                return None
+            return self._to_interaction_with_mentions(session, row)
+        finally:
+            session.close()
+
     def get_interactions(
         self,
         target_resource: str,

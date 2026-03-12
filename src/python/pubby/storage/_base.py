@@ -68,8 +68,8 @@ class ActivityPubStorage(ABC):
 
     def delete_interaction_by_object_id(
         self,
-        source_actor_id: str,
-        object_id: str,
+        source_actor_id: str,  # type: ignore
+        object_id: str,  # type: ignore
     ) -> bool:
         """
         Delete an interaction by its ``object_id`` (the remote object URL).
@@ -80,6 +80,23 @@ class ActivityPubStorage(ABC):
         Subclasses may override for a more efficient implementation.
         """
         return False
+
+    def get_interaction_by_object_id(
+        self,
+        object_id: str,  # type: ignore
+        status: InteractionStatus = InteractionStatus.CONFIRMED,  # type: ignore
+    ) -> Interaction | None:
+        """
+        Retrieve an interaction by its ``object_id`` (the remote object URL).
+
+        This is useful when you need to look up an interaction without knowing
+        its target resource, e.g., to find who sent a particular reply.
+
+        :param object_id: The remote object URL (e.g., a Mastodon status URL).
+        :param status: Filter by status (default: CONFIRMED).
+        :return: The matching Interaction, or None if not found.
+        """
+        return None
 
     @abstractmethod
     def get_interactions(

@@ -158,6 +158,10 @@ class FileActivityPubStorage(ActivityPubStorage):
         if interaction.mentioned_actors:
             self._update_mention_index(interaction, add=True)
 
+        # Update object_id index
+        if interaction.object_id:
+            self._update_object_id_index(interaction, add=True)
+
     def delete_interaction(
         self,
         source_actor_id: str,
@@ -170,10 +174,14 @@ class FileActivityPubStorage(ActivityPubStorage):
         # Mark as deleted rather than removing the file
         data = self.read_json(path)
         if data is not None:
-            # Remove from mention index before marking deleted
             interaction = Interaction.build(data)
+
+            # Remove from mention index before marking deleted
             if interaction.mentioned_actors:
                 self._update_mention_index(interaction, add=False)
+
+            # Note: We keep the object_id index for deleted interactions
+            # so they can still be looked up with status=DELETED
 
             data["status"] = InteractionStatus.DELETED.value
             data["updated_at"] = datetime.now(timezone.utc).isoformat()
@@ -184,33 +192,68 @@ class FileActivityPubStorage(ActivityPubStorage):
         source_actor_id: str,
         object_id: str,
     ) -> bool:
-        interactions_dir = self.data_dir / "interactions"
-        if not interactions_dir.exists():
+        # Use the object_id index for efficient lookup
+        index_path = self._object_id_index_path(object_id)
+        if not index_path.exists():
             return False
 
-        found = False
-        for target_dir in interactions_dir.iterdir():
-            if not target_dir.is_dir():
-                continue
-            for fpath in self.list_json_files(target_dir):
-                data = self.read_json(fpath)
-                if data is None:
-                    continue
-                if not isinstance(data, dict):
-                    continue
-                if (
-                    data.get("source_actor_id") == source_actor_id
-                    and data.get("object_id") == object_id
-                    and data.get("status") != InteractionStatus.DELETED.value
-                ):
-                    interaction = Interaction.build(data)
-                    if interaction.mentioned_actors:
-                        self._update_mention_index(interaction, add=False)
-                    data["status"] = InteractionStatus.DELETED.value
-                    data["updated_at"] = datetime.now(timezone.utc).isoformat()
-                    self.write_json(fpath, data)
-                    found = True
-        return found
+        index_data = self.read_json(index_path)
+        if not index_data or index_data.get("source_actor_id") != source_actor_id:
+            return False
+
+        itype = InteractionType(index_data["interaction_type"])
+        interaction_path = self._interaction_path(
+            index_data["source_actor_id"],
+            index_data["target_resource"],
+            itype,
+        )
+
+        data = self.read_json(interaction_path)
+        if data is None or data.get("status") == InteractionStatus.DELETED.value:
+            return False
+
+        interaction = Interaction.build(data)
+        if interaction.mentioned_actors:
+            self._update_mention_index(interaction, add=False)
+
+        # Note: We keep the object_id index for deleted interactions
+        # so they can still be looked up with status=DELETED
+
+        data["status"] = InteractionStatus.DELETED.value
+        data["updated_at"] = datetime.now(timezone.utc).isoformat()
+        self.write_json(interaction_path, data)
+        return True
+
+    def get_interaction_by_object_id(
+        self,
+        object_id: str,
+        status: InteractionStatus = InteractionStatus.CONFIRMED,
+    ) -> Interaction | None:
+        # Use the object_id index for O(1) lookup
+        index_path = self._object_id_index_path(object_id)
+        if not index_path.exists():
+            return None
+
+        index_data = self.read_json(index_path)
+        if not index_data:
+            return None
+
+        itype = InteractionType(index_data["interaction_type"])
+        interaction_path = self._interaction_path(
+            index_data["source_actor_id"],
+            index_data["target_resource"],
+            itype,
+        )
+
+        data = self.read_json(interaction_path)
+        if data is None:
+            return None
+
+        interaction = Interaction.build(data)
+        if interaction.status != status:
+            return None
+
+        return interaction
 
     def get_interactions(
         self,
@@ -273,6 +316,38 @@ class FileActivityPubStorage(ActivityPubStorage):
 
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text(json.dumps(index, indent=2), encoding="utf-8")
+
+    # ---------- Object ID index ----------
+
+    def _object_id_index_path(self, object_id: str) -> Path:
+        """Path to the object_id index file."""
+        return (
+            self.data_dir
+            / "interactions"
+            / "_object_ids"
+            / f"{_sanitize(object_id)}.json"
+        )
+
+    def _update_object_id_index(self, interaction: Interaction, add: bool) -> None:
+        """Add or remove an interaction from the object_id index."""
+        if not interaction.object_id:
+            return
+
+        path = self._object_id_index_path(interaction.object_id)
+        lock = self._get_lock(str(path))
+        with lock:
+            if add:
+                entry = {
+                    "target_resource": interaction.target_resource,
+                    "interaction_type": interaction.interaction_type.value,
+                    "source_actor_id": interaction.source_actor_id,
+                }
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(json.dumps(entry, indent=2), encoding="utf-8")
+            else:
+                # Remove the index file
+                if path.exists():
+                    path.unlink()
 
     def get_interactions_mentioning(
         self,

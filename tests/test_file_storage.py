@@ -258,6 +258,86 @@ class TestInteractions:
     def test_get_interactions_empty(self, storage):
         assert storage.get_interactions("https://blog.example.com/nonexistent") == []
 
+    def test_get_interaction_by_object_id(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://mastodon.social/users/alice",
+                target_resource="https://blog.example.com/post/1",
+                interaction_type=InteractionType.REPLY,
+                object_id="https://mastodon.social/users/alice/statuses/123",
+                content="<p>Great post!</p>",
+            )
+        )
+
+        result = storage.get_interaction_by_object_id(
+            "https://mastodon.social/users/alice/statuses/123"
+        )
+        assert result is not None
+        assert result.source_actor_id == "https://mastodon.social/users/alice"
+        assert result.content == "<p>Great post!</p>"
+
+    def test_get_interaction_by_object_id_not_found(self, storage):
+        result = storage.get_interaction_by_object_id(
+            "https://mastodon.social/users/alice/statuses/999"
+        )
+        assert result is None
+
+    def test_get_interaction_by_object_id_respects_status(self, storage):
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://mastodon.social/users/alice",
+                target_resource="https://blog.example.com/post/1",
+                interaction_type=InteractionType.REPLY,
+                object_id="https://mastodon.social/users/alice/statuses/123",
+            )
+        )
+
+        # Delete the interaction
+        storage.delete_interaction(
+            "https://mastodon.social/users/alice",
+            "https://blog.example.com/post/1",
+            InteractionType.REPLY,
+        )
+
+        # Should not find with default CONFIRMED status
+        result = storage.get_interaction_by_object_id(
+            "https://mastodon.social/users/alice/statuses/123"
+        )
+        assert result is None
+
+        # Should find with DELETED status
+        result = storage.get_interaction_by_object_id(
+            "https://mastodon.social/users/alice/statuses/123",
+            status=InteractionStatus.DELETED,
+        )
+        assert result is not None
+
+    def test_get_interaction_by_object_id_multiple_targets(self, storage):
+        """Find interaction when same object_id could be under different targets."""
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://mastodon.social/users/alice",
+                target_resource="https://blog.example.com/post/1",
+                interaction_type=InteractionType.REPLY,
+                object_id="https://mastodon.social/users/alice/statuses/100",
+            )
+        )
+        storage.store_interaction(
+            Interaction(
+                source_actor_id="https://mastodon.social/users/bob",
+                target_resource="https://blog.example.com/post/2",
+                interaction_type=InteractionType.REPLY,
+                object_id="https://mastodon.social/users/bob/statuses/200",
+            )
+        )
+
+        # Find Bob's interaction without knowing target_resource
+        result = storage.get_interaction_by_object_id(
+            "https://mastodon.social/users/bob/statuses/200"
+        )
+        assert result is not None
+        assert result.source_actor_id == "https://mastodon.social/users/bob"
+
 
 class TestMentionIndex:
     def test_store_with_mentions_creates_index(self, storage):
