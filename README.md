@@ -57,6 +57,7 @@
     - [DB Storage: Mention Index](#db-storage-mention-index)
   - [Migrations](#migrations)
     - [`backfill_mentions(storage, dry_run=False)`](#backfill_mentionsstorage-dry_runfalse)
+    - [`backfill_object_id_index(storage, dry_run=False)`](#backfill_object_id_indexstorage-dry_runfalse)
   - [Crypto](#crypto)
 - [Tests](#tests)
 - [Development](#development)
@@ -863,6 +864,28 @@ stats = backfill_mentions(storage)
 
 Currently supports `FileActivityPubStorage`. For DB storage, run a direct SQL
 migration to populate the `interaction_mentions` table from existing data.
+
+#### `backfill_object_id_index(storage, dry_run=False)`
+
+Backfill the `_object_ids/` index for existing interactions. Required after
+upgrading to enable `get_interaction_by_object_id()` for pre-existing data:
+
+```python
+from pubby.storage import backfill_object_id_index
+from pubby.storage.adapters.file import FileActivityPubStorage
+
+storage = FileActivityPubStorage("/path/to/data")
+
+# Preview changes
+stats = backfill_object_id_index(storage, dry_run=True)
+print(stats)
+# {'scanned': 100, 'indexed': 85, 'skipped_no_object_id': 10, ...}
+
+# Apply changes
+stats = backfill_object_id_index(storage)
+```
+
+Only needed for `FileActivityPubStorage`. DB storage uses SQL indexes automatically.
 
 ### Crypto
 

@@ -120,6 +120,77 @@ def backfill_mentions(
     return stats
 
 
+def backfill_object_id_index(
+    storage: "ActivityPubStorage",
+    *,
+    dry_run: bool = False,
+) -> dict:
+    """
+    Backfill the object_id index for existing interactions.
+
+    Scans all interactions and creates index entries for those with an
+    ``object_id``. This enables O(1) lookups via ``get_interaction_by_object_id()``.
+
+    :param storage: The storage backend to migrate.
+    :param dry_run: If True, only report what would be done without making changes.
+    :return: A dict with migration statistics.
+    """
+    stats = {
+        "scanned": 0,
+        "indexed": 0,
+        "skipped_no_object_id": 0,
+        "skipped_already_indexed": 0,
+        "errors": 0,
+    }
+
+    from .adapters.file import FileActivityPubStorage
+
+    if not isinstance(storage, FileActivityPubStorage):
+        logger.warning(
+            "backfill_object_id_index only supports FileActivityPubStorage. "
+            "DB storage uses SQL indexes automatically."
+        )
+        return stats
+
+    interactions = _get_all_file_interactions(storage)
+
+    for interaction in interactions:
+        stats["scanned"] += 1
+
+        if not interaction.object_id:
+            stats["skipped_no_object_id"] += 1
+            continue
+
+        # Check if already indexed
+        index_path = storage._object_id_index_path(interaction.object_id)
+        if index_path.exists():
+            stats["skipped_already_indexed"] += 1
+            continue
+
+        if not dry_run:
+            try:
+                storage._update_object_id_index(interaction, add=True)
+                stats["indexed"] += 1
+                logger.debug(
+                    "Indexed interaction %s",
+                    interaction.object_id,
+                )
+            except Exception:
+                logger.exception(
+                    "Failed to index interaction %s",
+                    interaction.object_id,
+                )
+                stats["errors"] += 1
+        else:
+            stats["indexed"] += 1
+            logger.info(
+                "[DRY RUN] Would index interaction: %s",
+                interaction.object_id,
+            )
+
+    return stats
+
+
 def _get_all_file_interactions(storage: "FileActivityPubStorage") -> list:
     """Get all interactions from a FileActivityPubStorage backend."""
     import os
