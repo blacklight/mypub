@@ -13,6 +13,7 @@ import requests
 
 from .._model import (
     AP_CONTEXT,
+    Actor,
     Follower,
     Object,
 )
@@ -24,6 +25,14 @@ logger = logging.getLogger(__name__)
 
 # Public addressing
 AS_PUBLIC = "https://www.w3.org/ns/activitystreams#Public"
+
+# URL patterns that are not actor URLs (collections, public addressing)
+_NON_ACTOR_URL_PATTERNS = (
+    "/followers",
+    "/following",
+    "/outbox",
+    "/inbox",
+)
 
 
 class OutboxProcessor:
@@ -156,7 +165,13 @@ class OutboxProcessor:
 
     def publish(self, activity: dict) -> dict:
         """
-        Publish an activity: store in outbox and fan-out to followers.
+        Publish an activity: store in outbox and fan-out to followers and
+        mentioned actors.
+
+        Delivery targets include:
+        - All follower inboxes (via stored follower list)
+        - All actor inboxes from the activity's ``to`` and ``cc`` fields
+          (e.g., mentioned users)
 
         :param activity: The activity JSON-LD dictionary.
         :return: The stored activity.
@@ -164,10 +179,22 @@ class OutboxProcessor:
         activity_id = activity.get("id", self._new_activity_id())
         self.storage.store_activity(activity_id, activity)
 
-        # Fan-out delivery (concurrent)
+        # Collect follower inboxes
         followers = self.storage.get_followers()
-        inboxes = self._collect_inboxes(followers)
+        follower_inboxes = self._collect_inboxes(followers)
 
+        # Collect recipient inboxes (mentioned actors, etc.)
+        recipient_inboxes = self._collect_recipient_inboxes(activity)
+
+        # Merge and deduplicate
+        seen: set[str] = set(follower_inboxes)
+        inboxes = list(follower_inboxes)
+        for inbox in recipient_inboxes:
+            if inbox not in seen:
+                seen.add(inbox)
+                inboxes.append(inbox)
+
+        # Fan-out delivery (concurrent)
         with ThreadPoolExecutor(
             max_workers=min(self.max_delivery_workers, len(inboxes) or 1)
         ) as pool:
@@ -201,6 +228,117 @@ class OutboxProcessor:
         for follower in followers:
             # Prefer shared inbox to reduce delivery requests
             inbox = follower.shared_inbox or follower.inbox
+            if inbox and inbox not in seen:
+                seen.add(inbox)
+                inboxes.append(inbox)
+
+        return inboxes
+
+    def _is_actor_url(self, url: str) -> bool:
+        """
+        Check if a URL is likely an actor URL (not a collection or special URL).
+
+        :param url: The URL to check.
+        :return: True if it appears to be an actor URL.
+        """
+        if not url or not url.startswith("http"):
+            return False
+
+        # Exclude public addressing
+        if url == AS_PUBLIC:
+            return False
+
+        # Exclude our own collections
+        if self.followers_collection_url and url == self.followers_collection_url:
+            return False
+
+        # Exclude common collection URL patterns
+        for pattern in _NON_ACTOR_URL_PATTERNS:
+            if url.endswith(pattern):
+                return False
+
+        return True
+
+    def _extract_recipient_actors(self, activity: dict) -> list[str]:
+        """
+        Extract actor URLs from the activity's to and cc fields.
+
+        Filters out special URLs like AS_PUBLIC and collection URLs.
+
+        :param activity: The activity dictionary.
+        :return: List of actor URLs.
+        """
+        actors: list[str] = []
+        seen: set[str] = set()
+
+        for field in ("to", "cc"):
+            recipients = activity.get(field, [])
+            if isinstance(recipients, str):
+                recipients = [recipients]
+
+            for url in recipients:
+                if url not in seen and self._is_actor_url(url):
+                    seen.add(url)
+                    actors.append(url)
+
+        return actors
+
+    def _fetch_actor(self, actor_url: str) -> dict | None:
+        """
+        Fetch a remote actor document.
+
+        :param actor_url: The actor's URL/ID.
+        :return: The actor document or None if fetch failed.
+        """
+        # Check cache first
+        cached = self.storage.get_cached_actor(actor_url)
+        if cached is not None:
+            return cached
+
+        try:
+            resp = requests.get(
+                actor_url,
+                headers={
+                    "Accept": "application/activity+json, application/ld+json",
+                    "User-Agent": self.user_agent,
+                },
+                timeout=self.http_timeout,
+            )
+            resp.raise_for_status()
+            actor_data = resp.json()
+            self.storage.cache_remote_actor(actor_url, actor_data)
+            return actor_data
+        except requests.HTTPError as e:
+            if e.response is not None and e.response.status_code == 410:
+                logger.debug("Actor gone (deleted): %s", actor_url)
+            else:
+                logger.warning("Failed to fetch actor %s: %s", actor_url, e)
+            return None
+        except Exception as e:
+            logger.warning("Failed to fetch actor %s: %s", actor_url, e)
+            return None
+
+    def _collect_recipient_inboxes(self, activity: dict) -> list[str]:
+        """
+        Collect inbox URLs for actors in the activity's to/cc fields.
+
+        Fetches each actor document to get their inbox URL.
+
+        :param activity: The activity dictionary.
+        :return: List of inbox URLs.
+        """
+        actor_urls = self._extract_recipient_actors(activity)
+        inboxes: list[str] = []
+        seen: set[str] = set()
+
+        for actor_url in actor_urls:
+            actor_data = self._fetch_actor(actor_url)
+            if not actor_data:
+                continue
+
+            actor = Actor.build(actor_data)
+            # Prefer shared inbox to reduce delivery requests
+            inbox = actor.endpoints.get("sharedInbox") or actor.inbox
             if inbox and inbox not in seen:
                 seen.add(inbox)
                 inboxes.append(inbox)

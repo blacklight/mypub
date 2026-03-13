@@ -314,3 +314,229 @@ class TestConcurrentDelivery:
             f"Delivery took {elapsed:.2f}s, expected < {sequential_time * 0.6:.2f}s "
             f"(sequential would be ~{sequential_time:.2f}s)"
         )
+
+
+class TestMentionDelivery:
+    """Tests for delivering activities to mentioned actors (CC'd users)."""
+
+    def test_is_actor_url_filters_public(self, outbox_processor):
+        """AS_PUBLIC should not be considered an actor URL."""
+        assert not outbox_processor._is_actor_url(AS_PUBLIC)
+
+    def test_is_actor_url_filters_collections(self, outbox_processor):
+        """Collection URLs (followers, following, etc.) should be filtered."""
+        assert not outbox_processor._is_actor_url("https://example.com/ap/followers")
+        assert not outbox_processor._is_actor_url(
+            "https://example.com/users/alice/following"
+        )
+        assert not outbox_processor._is_actor_url("https://example.com/ap/outbox")
+        assert not outbox_processor._is_actor_url("https://example.com/users/bob/inbox")
+
+    def test_is_actor_url_accepts_actor_urls(self, outbox_processor):
+        """Valid actor URLs should be accepted."""
+        assert outbox_processor._is_actor_url("https://mastodon.social/users/alice")
+        assert outbox_processor._is_actor_url("https://example.com/@bob")
+        assert outbox_processor._is_actor_url("https://remote.example.com/ap/actor")
+
+    def test_is_actor_url_filters_own_followers(self, outbox_processor):
+        """Our own followers collection URL should be filtered."""
+        assert not outbox_processor._is_actor_url(
+            "https://blog.example.com/ap/followers"
+        )
+
+    def test_extract_recipient_actors_from_cc(self, outbox_processor):
+        """Should extract actor URLs from CC field."""
+        activity = {
+            "to": [AS_PUBLIC],
+            "cc": [
+                "https://blog.example.com/ap/followers",
+                "https://mastodon.social/users/alice",
+                "https://remote.example.com/users/bob",
+            ],
+        }
+        actors = outbox_processor._extract_recipient_actors(activity)
+        assert len(actors) == 2
+        assert "https://mastodon.social/users/alice" in actors
+        assert "https://remote.example.com/users/bob" in actors
+
+    def test_extract_recipient_actors_from_to(self, outbox_processor):
+        """Should extract actor URLs from to field (direct messages)."""
+        activity = {
+            "to": ["https://mastodon.social/users/alice"],
+            "cc": [],
+        }
+        actors = outbox_processor._extract_recipient_actors(activity)
+        assert actors == ["https://mastodon.social/users/alice"]
+
+    def test_extract_recipient_actors_deduplicates(self, outbox_processor):
+        """Should not return duplicates if same actor in to and cc."""
+        activity = {
+            "to": ["https://mastodon.social/users/alice"],
+            "cc": ["https://mastodon.social/users/alice"],
+        }
+        actors = outbox_processor._extract_recipient_actors(activity)
+        assert actors == ["https://mastodon.social/users/alice"]
+
+    def test_extract_recipient_actors_handles_string_values(self, outbox_processor):
+        """Should handle to/cc being single strings instead of lists."""
+        activity = {
+            "to": AS_PUBLIC,
+            "cc": "https://mastodon.social/users/alice",
+        }
+        actors = outbox_processor._extract_recipient_actors(activity)
+        assert actors == ["https://mastodon.social/users/alice"]
+
+    @patch("pubby.handlers._outbox.requests")
+    def test_collect_recipient_inboxes_fetches_actors(
+        self, mock_requests, outbox_processor, mock_storage
+    ):
+        """Should fetch actor documents and extract inbox URLs."""
+        mock_storage.get_cached_actor.return_value = None
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {
+            "id": "https://mastodon.social/users/alice",
+            "type": "Person",
+            "inbox": "https://mastodon.social/users/alice/inbox",
+            "endpoints": {"sharedInbox": "https://mastodon.social/inbox"},
+        }
+        mock_requests.get.return_value = mock_resp
+
+        activity = {
+            "to": [AS_PUBLIC],
+            "cc": [
+                "https://blog.example.com/ap/followers",
+                "https://mastodon.social/users/alice",
+            ],
+        }
+
+        inboxes = outbox_processor._collect_recipient_inboxes(activity)
+
+        assert len(inboxes) == 1
+        # Should prefer shared inbox
+        assert "https://mastodon.social/inbox" in inboxes
+        mock_requests.get.assert_called_once()
+
+    @patch("pubby.handlers._outbox.requests")
+    def test_collect_recipient_inboxes_uses_cache(
+        self, mock_requests, outbox_processor, mock_storage
+    ):
+        """Should use cached actor data when available."""
+        mock_storage.get_cached_actor.return_value = {
+            "id": "https://mastodon.social/users/alice",
+            "type": "Person",
+            "inbox": "https://mastodon.social/users/alice/inbox",
+        }
+
+        activity = {
+            "to": [AS_PUBLIC],
+            "cc": ["https://mastodon.social/users/alice"],
+        }
+
+        inboxes = outbox_processor._collect_recipient_inboxes(activity)
+
+        assert len(inboxes) == 1
+        assert "https://mastodon.social/users/alice/inbox" in inboxes
+        # Should not make HTTP request since cached
+        mock_requests.get.assert_not_called()
+
+    @patch("pubby.handlers._outbox.requests")
+    def test_publish_delivers_to_mentioned_actors(
+        self, mock_requests, outbox_processor, mock_storage
+    ):
+        """publish() should deliver to both followers and mentioned actors."""
+        # Set up a follower
+        mock_storage.get_followers.return_value = [
+            Follower(
+                actor_id="https://other.example.com/users/bob",
+                inbox="https://other.example.com/users/bob/inbox",
+            ),
+        ]
+
+        # Set up mentioned actor fetch
+        mock_storage.get_cached_actor.return_value = None
+
+        def mock_get(url, **kwargs):
+            resp = MagicMock()
+            if "alice" in url:
+                resp.status_code = 200
+                resp.json.return_value = {
+                    "id": "https://mastodon.social/users/alice",
+                    "type": "Person",
+                    "inbox": "https://mastodon.social/users/alice/inbox",
+                }
+            else:
+                resp.status_code = 404
+            return resp
+
+        def mock_post(url, **kwargs):
+            resp = MagicMock()
+            resp.status_code = 202
+            return resp
+
+        mock_requests.get.side_effect = mock_get
+        mock_requests.post.side_effect = mock_post
+
+        obj = Object(
+            id="https://blog.example.com/post/1",
+            type="Note",
+            content="<p>Hello @alice@mastodon.social!</p>",
+            attributed_to="https://blog.example.com/ap/actor",
+            cc=[
+                "https://blog.example.com/ap/followers",
+                "https://mastodon.social/users/alice",
+            ],
+        )
+
+        activity = outbox_processor.build_create_activity(obj)
+        outbox_processor.publish(activity)
+
+        # Should store activity
+        mock_storage.store_activity.assert_called_once()
+
+        # Should deliver to both follower and mentioned actor
+        assert mock_requests.post.call_count == 2
+        delivered_urls = [call[0][0] for call in mock_requests.post.call_args_list]
+        assert "https://other.example.com/users/bob/inbox" in delivered_urls
+        assert "https://mastodon.social/users/alice/inbox" in delivered_urls
+
+    @patch("pubby.handlers._outbox.requests")
+    def test_publish_deduplicates_inboxes(
+        self, mock_requests, outbox_processor, mock_storage
+    ):
+        """Should not deliver twice if mentioned actor is also a follower."""
+        # Alice is both a follower and mentioned
+        mock_storage.get_followers.return_value = [
+            Follower(
+                actor_id="https://mastodon.social/users/alice",
+                inbox="https://mastodon.social/users/alice/inbox",
+            ),
+        ]
+
+        mock_storage.get_cached_actor.return_value = {
+            "id": "https://mastodon.social/users/alice",
+            "type": "Person",
+            "inbox": "https://mastodon.social/users/alice/inbox",
+        }
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 202
+        mock_requests.post.return_value = mock_resp
+
+        obj = Object(
+            id="https://blog.example.com/post/1",
+            type="Note",
+            content="<p>Hello @alice!</p>",
+            attributed_to="https://blog.example.com/ap/actor",
+            cc=[
+                "https://blog.example.com/ap/followers",
+                "https://mastodon.social/users/alice",
+            ],
+        )
+
+        activity = outbox_processor.build_create_activity(obj)
+        outbox_processor.publish(activity)
+
+        # Should only deliver once (deduplicated)
+        assert mock_requests.post.call_count == 1

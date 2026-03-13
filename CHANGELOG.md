@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- **Mention delivery** — `OutboxProcessor.publish()` now delivers activities to
+  actors in the `to` and `cc` fields, not just followers. This enables
+  notifications for mentioned users (e.g., `@user@domain` mentions in posts).
+  Actor inboxes are fetched via HTTP (with caching) and deliveries are
+  deduplicated to avoid sending twice if a mentioned actor is also a follower.
+
 ## 0.2.13
 
 ### Added
