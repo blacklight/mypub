@@ -2,7 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-## Unreleased
+## 0.2.15
 
 ### Added
 - `OutboxProcessor.build_like_activity(object_url, *, activity_id=None,
