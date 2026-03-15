@@ -62,6 +62,13 @@ class ActivityPubHandler:
         defaults to the actor's base URL.
     :param software_name: Software name for NodeInfo.
     :param software_version: Software version for NodeInfo.
+    :param async_delivery: If ``True``, delivery fan-out runs in a background
+        thread and ``publish_object()`` / ``publish_activity()`` return
+        immediately after storing the activity. This prevents slow or
+        unreachable inboxes from blocking the caller. Defaults to ``True``.
+        Set it to ``False`` for synchronous delivery (easier to debug, errors
+        appear in the same stack trace as the caller, but it may cause delays
+        upon failed deliveries).
     """
 
     def __init__(
@@ -82,6 +89,7 @@ class ActivityPubHandler:
         local_base_urls: list[str] | None = None,
         software_name: str = "pubby",
         software_version: str = "0.0.1",
+        async_delivery: bool = True,
     ):
         self.storage = storage
 
@@ -157,6 +165,7 @@ class ActivityPubHandler:
             max_delivery_workers=max_delivery_workers,
             user_agent=user_agent,
             http_timeout=http_timeout,
+            async_delivery=async_delivery,
         )
 
         self.renderer = InteractionsRenderer()

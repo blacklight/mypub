@@ -34,6 +34,7 @@ def handler_with_attachment(private_key):
             ],
         },
         private_key=private_key,
+        async_delivery=False,  # Synchronous for test assertions
     )
 
 
@@ -53,6 +54,7 @@ def handler_no_attachment(private_key):
             "summary": "A test blog",
         },
         private_key=private_key,
+        async_delivery=False,  # Synchronous for test assertions
     )
 
 

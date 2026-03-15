@@ -229,6 +229,9 @@ Responsible for:
 2. **Publishing** — `publish(activity)` stores the activity, collects
    follower inboxes (preferring shared inboxes for deduplication), then
    fans out delivery concurrently via `ThreadPoolExecutor`.
+   When `async_delivery=True`, delivery runs in a background daemon thread
+   so `publish()` returns immediately without blocking on slow/unreachable
+   inboxes.
 3. **Retry** — `_deliver_with_retry()` uses exponential backoff
    (`retry_base_delay × 2^attempt`); 5xx responses and connection errors
    are retried, 4xx errors are not.

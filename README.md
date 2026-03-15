@@ -447,6 +447,7 @@ storage = FileActivityPubStorage(data_dir="...", auto_migrate=False)
 | `local_base_urls` | `list[str]` | `None` | Base URLs considered "local" (defaults to actor's base URL) |
 | `software_name` | `str` | `"pubby"` | NodeInfo software name |
 | `software_version` | `str` | `"0.0.1"` | NodeInfo software version |
+| `async_delivery` | `bool` | `True` | Run delivery fan-out in background thread (non-blocking) |
 
 ### `actor_config`
 

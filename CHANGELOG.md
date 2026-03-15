@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+### Added
+- `async_delivery` parameter for `ActivityPubHandler` and `OutboxProcessor`.
+  When `True` (now the default), delivery fan-out runs in a background daemon
+  thread so `publish()` returns immediately without blocking on slow or
+  unreachable inboxes.
+
 ## 0.2.15
 
 ### Added

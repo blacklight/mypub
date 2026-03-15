@@ -30,6 +30,7 @@ def outbox_processor(mock_storage, private_key):
         followers_collection_url="https://blog.example.com/ap/followers",
         max_retries=2,
         retry_base_delay=0.01,  # Very short for tests
+        async_delivery=False,  # Synchronous for test assertions
     )
 
 
@@ -420,6 +421,7 @@ class TestConcurrentDelivery:
             key_id="https://blog.example.com/ap/actor#main-key",
             max_retries=1,
             max_delivery_workers=num_followers,
+            async_delivery=False,  # Synchronous for test assertions
         )
 
         activity = processor.build_create_activity(

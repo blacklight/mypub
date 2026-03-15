@@ -4,6 +4,7 @@ Outbox processing — build activities, fan-out delivery to follower inboxes.
 
 import json
 import logging
+import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -49,6 +50,10 @@ class OutboxProcessor:
     :param max_delivery_workers: Maximum threads for concurrent fan-out delivery.
     :param user_agent: User-Agent for outgoing HTTP requests.
     :param http_timeout: Timeout for outgoing HTTP requests.
+    :param async_delivery: If ``True``, delivery fan-out runs in a background
+        thread and ``publish()`` returns immediately after storing the
+        activity. This prevents slow or unreachable inboxes from blocking
+        the caller.
     """
 
     def __init__(
@@ -64,6 +69,7 @@ class OutboxProcessor:
         max_delivery_workers: int = 10,
         user_agent: str | None = None,
         http_timeout: float = 15.0,
+        async_delivery: bool = True,
         **_,
     ):
         self.storage = storage
@@ -76,6 +82,7 @@ class OutboxProcessor:
         self.max_delivery_workers = max_delivery_workers
         self.user_agent = user_agent or get_default_user_agent(actor_id)
         self.http_timeout = http_timeout
+        self.async_delivery = async_delivery
 
     def _new_activity_id(self) -> str:
         """Generate a unique activity ID."""
@@ -304,9 +311,32 @@ class OutboxProcessor:
             len(inboxes),
         )
 
-        # Fan-out delivery (concurrent)
+        if self.async_delivery:
+            # Fire-and-forget: spawn a daemon thread for delivery
+            threading.Thread(
+                target=self._fan_out_delivery,
+                args=(inboxes, activity),
+                daemon=True,
+                name=f"ap-deliver-{activity_id.split('/')[-1][:8]}",
+            ).start()
+        else:
+            # Blocking: wait for all deliveries to complete
+            self._fan_out_delivery(inboxes, activity)
+
+        return activity
+
+    def _fan_out_delivery(self, inboxes: list[str], activity: dict) -> None:
+        """
+        Deliver an activity to multiple inboxes concurrently.
+
+        :param inboxes: List of inbox URLs.
+        :param activity: The activity to deliver.
+        """
+        if not inboxes:
+            return
+
         with ThreadPoolExecutor(
-            max_workers=min(self.max_delivery_workers, len(inboxes) or 1)
+            max_workers=min(self.max_delivery_workers, len(inboxes))
         ) as pool:
             futures = {
                 pool.submit(self._deliver_with_retry, url, activity): url
@@ -322,8 +352,6 @@ class OutboxProcessor:
                         url,
                         exc_info=True,
                     )
-
-        return activity
 
     def _collect_inboxes(self, followers: list[Follower]) -> list[str]:
         """
